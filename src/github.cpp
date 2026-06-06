@@ -4,7 +4,7 @@
 #include <message.h>
 
 #define GITHUB_OWNER "Banabas"
-#define GITHUB_REPO "ESP32-Jarolift-Controller"
+#define GITHUB_REPO "ESP32-Jarolift-PositionController"
 
 static const char *TAG = "GITHUB"; // LOG TAG
 

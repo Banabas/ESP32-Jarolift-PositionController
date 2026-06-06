@@ -1,7 +1,7 @@
 <div align="center">
 <img style="width: 100px;" src="./Doc/ESP32_Jarolift_Controller_Logo.svg">
 
-<h3>ESP32-Jarolift-Controller</h3>
+<h3>ESP32-Jarolift-PositionController</h3>
 
 <p><em>Fork von <a href="https://github.com/dewenni/ESP32-Jarolift-Controller">dewenni/ESP32-Jarolift-Controller</a> – erweitert um prozentbasierte Positionssteuerung</em></p>
 </div>
@@ -14,20 +14,20 @@
 
 <div align="center">
 
-[![Current Release](https://img.shields.io/github/release/Banabas/ESP32-Jarolift-Controller.svg)](https://github.com/Banabas/ESP32-Jarolift-Controller/releases/latest)
-![GitHub Release Date](https://img.shields.io/github/release-date/Banabas/ESP32-Jarolift-Controller)
-![GitHub last commit](https://img.shields.io/github/last-commit/Banabas/ESP32-Jarolift-Controller)
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/Banabas/ESP32-Jarolift-Controller/total?label=downloads%20total&color=%23f0cc59)
-![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/Banabas/ESP32-Jarolift-Controller/latest/total?label=downloads%20latest%20Release&color=%23f0cc59)
+[![Current Release](https://img.shields.io/github/release/Banabas/ESP32-Jarolift-PositionController.svg)](https://github.com/Banabas/ESP32-Jarolift-PositionController/releases/latest)
+![GitHub Release Date](https://img.shields.io/github/release-date/Banabas/ESP32-Jarolift-PositionController)
+![GitHub last commit](https://img.shields.io/github/last-commit/Banabas/ESP32-Jarolift-PositionController)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/Banabas/ESP32-Jarolift-PositionController/total?label=downloads%20total&color=%23f0cc59)
+![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/Banabas/ESP32-Jarolift-PositionController/latest/total?label=downloads%20latest%20Release&color=%23f0cc59)
 
-![GitHub watchers](https://img.shields.io/github/watchers/Banabas/ESP32-Jarolift-Controller?style=social)
-[![GitHub stars](https://img.shields.io/github/stars/Banabas/ESP32-Jarolift-Controller.svg?style=social&label=Star)](https://github.com/Banabas/ESP32-Jarolift-Controller/stargazers/)
+![GitHub watchers](https://img.shields.io/github/watchers/Banabas/ESP32-Jarolift-PositionController?style=social)
+[![GitHub stars](https://img.shields.io/github/stars/Banabas/ESP32-Jarolift-PositionController.svg?style=social&label=Star)](https://github.com/Banabas/ESP32-Jarolift-PositionController/stargazers/)
 
 </div>
 
 -----
 
-# ESP32-Jarolift-Controller
+# ESP32-Jarolift-PositionController
 
 Steuerung von Jarolift(TM) TDEF 433MHz Funkrolläden über **ESP32** und **CC1101** Transceiver-Modul im asynchronen Modus.
 
@@ -161,7 +161,7 @@ Payload:    50
 
 # Hardware
 
-Funktionierende Setups von Benutzern dieses Projekts: [funktionierende Setups](https://github.com/Banabas/ESP32-Jarolift-Controller/discussions/34)
+Funktionierende Setups von Benutzern dieses Projekts: [funktionierende Setups](https://github.com/Banabas/ESP32-Jarolift-PositionController/discussions/34)
 
 ## ESP32
 
@@ -251,7 +251,7 @@ Den `upload_port` in `platformio.ini` anpassen und den Code auf den ESP hochlade
 
 ## ESP-Flash-Tool
 
-In den Releases befinden sich vorgefertigte Binärdateien. Die Datei `ESP32-Jarolift-Controller_vX.X.X_espXX_flash.bin` enthält bereits Bootloader, Partitionstabelle und Firmware in einer Datei. Diese an Adresse `0x00` flashen.
+In den Releases befinden sich vorgefertigte Binärdateien. Die Datei `ESP32-Jarolift-PositionController_vX.X.X_espXX_flash.bin` enthält bereits Bootloader, Partitionstabelle und Firmware in einer Datei. Diese an Adresse `0x00` flashen.
 
 **Windows:**  
 [espressif-flash-download-tool](https://www.espressif.com/en/support/download/other-tools)
@@ -260,7 +260,7 @@ In den Releases befinden sich vorgefertigte Binärdateien. Die Datei `ESP32-Jaro
 
 ```bash
 pip install esptool
-esptool.py -p <PORT> write_flash 0x00 ESP32-Jarolift-Controller_vX.X.X_esp32_flash.bin
+esptool.py -p <PORT> write_flash 0x00 ESP32-Jarolift-PositionController_vX.X.X_esp32_flash.bin
 ```
 
 ## OTA-Updates

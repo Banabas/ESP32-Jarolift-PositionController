@@ -6,7 +6,7 @@ import subprocess
 
 pioenv       = env.get("PIOENV")
 BOARD_CONFIG = env.BoardConfig()
-PROJECT_NAME = "ESP32-Jarolift-Controller"
+PROJECT_NAME = "ESP32-Jarolift-PositionController"
 
 APP_BIN      = "$BUILD_DIR/${PROGNAME}.bin"
 MERGED_BIN   = "$BUILD_DIR/${PROGNAME}_merged.bin"
@@ -54,7 +54,7 @@ Kalibrierung erforderlich pro Kanal (Service-Seite -> Laufzeit-Kalibrierung).
 
 Quellcode
 ---------
-https://github.com/Banabas/ESP32-Jarolift-Controller
+https://github.com/Banabas/ESP32-Jarolift-PositionController
 """
     with open(os.path.join(release_path, "README.txt"), "w", encoding="utf-8") as f:
         f.write(content)

@@ -1,7 +1,7 @@
 <div align="center">
 <img style="width: 100px;" src="./Doc/ESP32_Jarolift_Controller_Logo.svg">
 
-<h3>ESP32-Jarolift-Controller</h3>
+<h3>ESP32-Jarolift-PositionController</h3>
 
 <p><em>Forked from <a href="https://github.com/dewenni/ESP32-Jarolift-Controller">dewenni/ESP32-Jarolift-Controller</a> – extended with percentage-based position control</em></p>
 </div>
@@ -14,20 +14,20 @@
 
 <div align="center">
 
-[![Current Release](https://img.shields.io/github/release/Banabas/ESP32-Jarolift-Controller.svg)](https://github.com/Banabas/ESP32-Jarolift-Controller/releases/latest)
-![GitHub Release Date](https://img.shields.io/github/release-date/Banabas/ESP32-Jarolift-Controller)
-![GitHub last commit](https://img.shields.io/github/last-commit/Banabas/ESP32-Jarolift-Controller)
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/Banabas/ESP32-Jarolift-Controller/total?label=downloads%20total&color=%23f0cc59)
-![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/Banabas/ESP32-Jarolift-Controller/latest/total?label=downloads%20latest%20Release&color=%23f0cc59)
+[![Current Release](https://img.shields.io/github/release/Banabas/ESP32-Jarolift-PositionController.svg)](https://github.com/Banabas/ESP32-Jarolift-PositionController/releases/latest)
+![GitHub Release Date](https://img.shields.io/github/release-date/Banabas/ESP32-Jarolift-PositionController)
+![GitHub last commit](https://img.shields.io/github/last-commit/Banabas/ESP32-Jarolift-PositionController)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/Banabas/ESP32-Jarolift-PositionController/total?label=downloads%20total&color=%23f0cc59)
+![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/Banabas/ESP32-Jarolift-PositionController/latest/total?label=downloads%20latest%20Release&color=%23f0cc59)
 
-![GitHub watchers](https://img.shields.io/github/watchers/Banabas/ESP32-Jarolift-Controller?style=social)
-[![GitHub stars](https://img.shields.io/github/stars/Banabas/ESP32-Jarolift-Controller.svg?style=social&label=Star)](https://github.com/Banabas/ESP32-Jarolift-Controller/stargazers/)
+![GitHub watchers](https://img.shields.io/github/watchers/Banabas/ESP32-Jarolift-PositionController?style=social)
+[![GitHub stars](https://img.shields.io/github/stars/Banabas/ESP32-Jarolift-PositionController.svg?style=social&label=Star)](https://github.com/Banabas/ESP32-Jarolift-PositionController/stargazers/)
 
 </div>
 
 -----
 
-# ESP32-Jarolift-Controller
+# ESP32-Jarolift-PositionController
 
 Controlling Jarolift(TM) TDEF 433MHz radio shutters via **ESP32** and **CC1101** Transceiver Module in asynchronous mode.
 
@@ -161,7 +161,7 @@ payload:    50
 
 # Hardware
 
-You can find working setups from users of this project here: [working setups](https://github.com/Banabas/ESP32-Jarolift-Controller/discussions/34)
+You can find working setups from users of this project here: [working setups](https://github.com/Banabas/ESP32-Jarolift-PositionController/discussions/34)
 
 ## ESP32
 
@@ -251,7 +251,7 @@ Then adapt the `upload_port` and corresponding settings in `platformio.ini` to y
 
 ## ESP-Flash-Tool
 
-In the releases you will find pre-built binary files. If you don't want to use PlatformIO, you can use the `ESP32-Jarolift-Controller_vX.X.X_espXX_flash.bin` file and flash it directly to the ESP. This file already contains bootloader, partitions and application merged into one image. Flash it at address `0x00`.
+In the releases you will find pre-built binary files. If you don't want to use PlatformIO, you can use the `ESP32-Jarolift-PositionController_vX.X.X_espXX_flash.bin` file and flash it directly to the ESP. This file already contains bootloader, partitions and application merged into one image. Flash it at address `0x00`.
 
 **Windows**  
 Several tools are available to flash binaries to the ESP.  
@@ -262,7 +262,7 @@ Use esptool.py from the terminal:
 
 ```bash
 pip install esptool
-esptool.py -p <UPLOAD-PORT> write_flash 0x00 ESP32-Jarolift-Controller_vX.X.X_esp32_flash.bin
+esptool.py -p <UPLOAD-PORT> write_flash 0x00 ESP32-Jarolift-PositionController_vX.X.X_esp32_flash.bin
 ```
 
 ## OTA-Updates
