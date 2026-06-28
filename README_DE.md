@@ -44,7 +44,7 @@ Steuerung von Jarolift(TM) TDEF 433MHz Funkrolläden über **ESP32** und **CC110
 ### Prozentbasierte Positionssteuerung
 
 Die wichtigste Neuerung ist die **zeitbasierte Positionssteuerung**.  
-Jeder Rollladen kann nun auf eine beliebige Position zwischen 0% (vollständig geöffnet) und 100% (vollständig geschlossen) gefahren werden – direkt über die Weboberfläche, per MQTT oder über Home Assistant.
+Jeder Rollladen kann nun auf eine beliebige Position zwischen 0% (vollständig geschlossen) und 100% (vollständig geöffnet) gefahren werden – direkt über die Weboberfläche, per MQTT oder über Home Assistant. Diese Konvention entspricht der von Home Assistant.
 
 > **Wie es funktioniert:** Da Jarolift-Motoren ihre tatsächliche Position nicht zurückmelden, misst der Controller wie lange der Motor von vollständig geöffnet bis vollständig geschlossen braucht (und zurück). Anhand dieser kalibrierten Fahrzeit berechnet er genau, wann der Motor gestoppt werden muss, um jede gewünschte Position zu erreichen.
 
@@ -55,7 +55,7 @@ Jeder Rollladen kann nun auf eine beliebige Position zwischen 0% (vollständig g
 - **Präzises Timing** – der Stoppbefehl wird exakt in dem Millisekunden ausgegeben, in dem der RF-Befehl des Motors gesendet wird
 - **Positionsspeicher** – die zuletzt bekannte Position wird im Flash-Speicher gespeichert und nach einem Neustart wiederhergestellt
 - **MQTT-Positionssteuerung** – eine Zahl (0–100) als Payload senden, um einen Rollladen auf diese Position zu fahren
-- **Home Assistant Integration** – Rolläden erscheinen als Cover-Entitäten mit Positionsschieberegler; Positionen >= 75% werden als "geschlossen" gemeldet, darunter als "geöffnet"
+- **Home Assistant Integration** – Rolläden erscheinen als Cover-Entitäten mit Positionsschieberegler; Positionen <= 25% werden als "geschlossen" gemeldet, 100% als "geöffnet"
 
 ![Positionsschieberegler](Doc/webUI_position_slider.png)
 
@@ -79,19 +79,21 @@ Die Kalibrierung misst die tatsächliche Fahrzeit des Motors in beiden Richtunge
 > [!TIP]
 > Die Kalibrierung muss nur einmal pro Kanal durchgeführt werden. Die gemessenen Fahrzeiten bleiben nach einem Neustart erhalten und werden in der Konfigurationsdatei gespeichert.
 
+Falls die automatisch gemessenen Fahrzeiten nicht ganz genau sind, können sie auf der **Einstellungsseite** pro Kanal manuell in Sekunden korrigiert werden (Felder "Laufzeit ZU" / "Laufzeit AUF").
+
 ### Aktualisierte Home Assistant Discovery
 
 - Jeder Rollladen wird als **Cover-Entität mit Positionsschieberegler** (0–100%) veröffentlicht
 - Ein separater **Schatten-Button** wird für jeden Rollladen hinzugefügt
-- Statuslogik: Position >= 75% -> `closed`, Position > 0% -> `stopped`, Position = 0% -> `open`
-- Positionsbefehle von HA werden automatisch invertiert (ESP32: 0 = offen, 100 = geschlossen)
+- Statuslogik: Position <= 25% -> `closed`, Position < 100% -> `stopped`, Position = 100% -> `open`
+- Positionskonvention von ESP32 und HA stimmen überein (0 = geschlossen, 100 = offen) – keine Invertierung nötig
 
 ### Position per MQTT
 
 ```text
 Befehl:     Rollladen auf Position fahren (0-100%)
 Topic:      ../cmd/shutter/1 ... cmd/shutter/16
-Payload:    {0 ... 100}   (Ganzzahl, 0 = vollständig offen, 100 = vollständig geschlossen)
+Payload:    {0 ... 100}   (Ganzzahl, 0 = vollständig geschlossen, 100 = vollständig offen)
 
 Beispiel:   Rollladen 1 auf 50% fahren
 Topic:      jarolift/cmd/shutter/1
@@ -429,8 +431,8 @@ Payload:    {0b0000000000010101, 0x15, 21}
 Status:     Position (0-100%)
 Topic:      ../status/shutter/1 ... status/shutter/16
 Payload:    {0 ... 100}
-            0   = vollständig offen
-            100 = vollständig geschlossen
+            0   = vollständig geschlossen
+            100 = vollständig offen
 ```
 
 > [!IMPORTANT]
@@ -454,7 +456,7 @@ MQTT Auto Discovery registriert alle aktivierten Rolläden automatisch als **Cov
 
 - **Positionsschieberegler** – Rolläden auf beliebige Position 0–100% fahren
 - **Schatten-Button** – separater Button pro Rollladen für den Schatten-Befehl
-- **Statuslogik** – Position >= 75% wird als geschlossen angezeigt, darunter als geöffnet
+- **Statuslogik** – Position <= 25% wird als geschlossen angezeigt, 100% als geöffnet
 
 <img src="Doc/webUI_ha2.png" alt="Home Assistant Integration" width="75%">
 

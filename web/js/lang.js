@@ -250,6 +250,14 @@ const user_translations = {
     de: "Stopp - Rollladen oben",
     en: "Stop - Shutter open",
   },
+  travel_time_down: {
+    de: "Laufzeit ZU (s)",
+    en: "Travel time DOWN (s)",
+  },
+  travel_time_up: {
+    de: "Laufzeit AUF (s)",
+    en: "Travel time UP (s)",
+  },
 
   astro_real: {
     de: "REAL (Sonnenauf/-untergang)",

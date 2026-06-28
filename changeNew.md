@@ -1,47 +1,32 @@
-# v1.20.0
+# v1.21.0
 
 ## what's new
 
-This is a major feature release.
+This release fixes several bugs found during review of the position-control code introduced in v1.20.0, and adds two smaller usability improvements.
 
-> [!TIP]
-> Maybe it is necessary to clean your browser cache after the update, to be sure that everything works well!
+> [!WARNING]
+> **Breaking change:** the position percentage convention has been inverted to match Home Assistant's native cover convention:
+> **0% = fully closed, 100% = fully open** (previously it was the other way round).
+> If you have MQTT automations, scripts, or Node-RED flows that send/read a numeric shutter position, update them to the new convention. Home Assistant's auto-discovered cover entities require no changes - they already worked the "right way round" before via an internal inversion that has now been removed.
 
-### Time-based position control
+### Manual travel-time correction
 
-Roller shutters can now be moved to a specific position (0–100 %) directly via the WebUI slider or via MQTT.
-Position tracking is purely time-based: after a one-time calibration the firmware calculates how long the motor has to run to reach the desired position and then sends an RF STOP at the right moment.
+The automatically measured travel times (from calibration) can now be fine-tuned by hand on the **Settings** page, per channel, in seconds (fields "Travel time DOWN" / "Travel time UP"). Useful if the calibrated value drifts slightly from the shutter's real travel time.
 
-**Calibration** is done in two phases (DOWN then UP) from the service page.  
-Both travel times (DOWN and UP) are stored independently so that asymmetric motors are handled correctly.
+### Channel names in the log
 
-### Extended timer system
-
-The timer has been completely redesigned:
-
-- **Per-channel timers** – each of the 16 channels can have its own independent UP/DOWN schedule
-- **Per-group timers** – each of the 6 groups can also have an independent UP/DOWN schedule
-- **Weekend override** – Saturday/Sunday can use a different time or astro event than the weekday schedule
-- **Astro modes** – choose between Real, Civil, Nautical, Astronomical twilight or a custom Horizon angle for sunrise/sunset events
-- **Min/Max time constraints** – limit astro-based events so they never fire before a minimum or after a maximum clock time
-
-### ESP32-S3 16 MB support
-
-A new build target `esp32s3_16mb` with a matching 16 MB partition table has been added.
+Log messages for shutter and position commands now show the configured channel name (e.g. "Living Room") instead of just the channel number, making the log easier to read with many channels in use.
 
 ## changelog
 
-- [FEATURE] Time-based position control via WebUI slider and MQTT numeric payload (0–100 %)
-- [FEATURE] Two-phase calibration (DOWN + UP) with independent travel times per channel
-- [FEATURE] Per-channel timer with individual UP/DOWN events and weekday selection
-- [FEATURE] Per-group timer with individual UP/DOWN events and weekday selection
-- [FEATURE] Weekend override for timer events (Sa+So use separate time/astro settings)
-- [FEATURE] Astro modes: Real, Civil, Nautical, Astronomical, Horizon for sunrise/sunset timers
-- [FEATURE] Min/Max time constraints for astro-based timer events
-- [FEATURE] New build target esp32s3_16mb (16 MB flash with matching partition table)
-- [FIX] Timer overview: `astroKeys` renamed to `astroKeyNames` – fixes ReferenceError for astro-mode timers
-- [FIX] Timer overview: `buildTimerOverview()` now called after server data load instead of fixed timeout
-- [FIX] Timer weekend override: corrected element ID lookup in `toggleWeekend()` (`_we_block` instead of `_we_we_block`)
-- [FIX] Browser refresh: timer fields `horizon_value`, `use_min_time`, `use_max_time`, `min_time` and `max_time` now correctly restored after page reload
-- [FIX] Service log: channel number in learn/unlearn/endpoint commands now correct
-- [FIX] Config load: duplicate `eth.ipaddress` read removed
+- [BREAKING] Position convention inverted: 0% = closed, 100% = open (matches Home Assistant; MQTT discovery position template simplified accordingly)
+- [FEATURE] Manual per-channel travel-time correction (seconds) on the Settings page
+- [FEATURE] Log output shows configured channel names instead of channel numbers
+- [FIX] Format-string vulnerability: several WebUI config fields passed user-supplied text directly as a printf format string instead of as `%s` data
+- [FIX] Position control: retargeting to a new position while already moving in the same direction no longer loses its stop timer (shutter no longer overruns to the end-stop)
+- [FIX] Position control: stop-time calculation no longer wraps to a huge value when the time-based position estimate drifts past the target, which could send the shutter to the wrong end-stop
+- [FIX] Config: MQTT password could be left as raw ciphertext if decryption failed after a corrupted/partial config read, causing a permanent reconnect/reboot loop
+- [FIX] Timer: weekend override no longer fires the other direction's normal weekday schedule when only one direction (UP or DOWN) has weekend mode enabled
+- [FIX] Config: GPIO duplicate-pin check had an off-by-one and never checked the 20th configured pin
+- [FIX] Timer: day-rollover guard used a 32-bit `int` instead of `time_t`, which could permanently stop all timers from firing after a long uptime
+- [FIX] Position control: calibration/log timing used an extra `millis()` call that could make the logged "stop in N ms" value wrap to a huge, misleading number

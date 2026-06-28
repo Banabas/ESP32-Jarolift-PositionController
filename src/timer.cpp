@@ -6,15 +6,12 @@
 #include <timer.h>
 #include <shutter_position.h>
 
-static int   lastProcessedTime = -1;
+static time_t lastProcessedTime = -1;
 static const char *TAG = "TIMER";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 bool isDayEnabled(const s_channel_timer &ct, int day) {
-  // Wochenende: wenn weekend_enable aktiv, Sa/So immer erlauben
-  bool isWeekendDay = (day == 0 || day == 6);
-  if (isWeekendDay && (ct.up.weekend_enable || ct.down.weekend_enable)) return true;
   switch (day) {
     case 0: return ct.sunday;
     case 1: return ct.monday;
@@ -133,17 +130,21 @@ void timerCyclic() {
   uint8_t M = dti.tm_min;
   int     W = dti.tm_wday;
 
+  const bool isWeekend = (W == 0 || W == 6);
+
   // ── Per-channel timers ────────────────────────────────────────────────────
   for (int ch = 0; ch < 16; ch++) {
     const s_channel_timer &ct = config.ch_timer[ch];
     if (!ct.enable || !config.jaro.ch_enable[ch]) continue;
-    if (!isDayEnabled(ct, W)) continue;
+    const bool dayOk = isDayEnabled(ct, W);
 
-    if (ct.up.enable && eventTriggered(ct.up, H, M, W)) {
+    if (ct.up.enable && (dayOk || (isWeekend && ct.up.weekend_enable)) &&
+        eventTriggered(ct.up, H, M, W)) {
       ESP_LOGI(TAG, "Ch-Timer ch %d UP", ch + 1);
       jaroCmd(CMD_UP, (uint8_t)ch);
     }
-    if (ct.down.enable && eventTriggered(ct.down, H, M, W)) {
+    if (ct.down.enable && (dayOk || (isWeekend && ct.down.weekend_enable)) &&
+        eventTriggered(ct.down, H, M, W)) {
       ESP_LOGI(TAG, "Ch-Timer ch %d DOWN", ch + 1);
       jaroCmd(CMD_DOWN, (uint8_t)ch);
     }
@@ -153,13 +154,15 @@ void timerCyclic() {
   for (int g = 0; g < 6; g++) {
     const s_channel_timer &gt = config.grp_timer[g];
     if (!gt.enable || !config.jaro.grp_enable[g]) continue;
-    if (!isDayEnabled(gt, W)) continue;
+    const bool dayOk = isDayEnabled(gt, W);
 
-    if (gt.up.enable && eventTriggered(gt.up, H, M, W)) {
+    if (gt.up.enable && (dayOk || (isWeekend && gt.up.weekend_enable)) &&
+        eventTriggered(gt.up, H, M, W)) {
       ESP_LOGI(TAG, "Grp-Timer grp %d UP", g + 1);
       jaroCmd(CMD_GRP_UP, config.jaro.grp_mask[g]);
     }
-    if (gt.down.enable && eventTriggered(gt.down, H, M, W)) {
+    if (gt.down.enable && (dayOk || (isWeekend && gt.down.weekend_enable)) &&
+        eventTriggered(gt.down, H, M, W)) {
       ESP_LOGI(TAG, "Grp-Timer grp %d DOWN", g + 1);
       jaroCmd(CMD_GRP_DOWN, config.jaro.grp_mask[g]);
     }

@@ -23,33 +23,39 @@ def extract_version():
 
 
 def write_readme(release_path, version):
-    """Create README.txt with flashing instructions for all supported chips."""
-    mcus = ["esp32", "esp32s2", "esp32s3"]
+    """Create README.txt with flashing instructions for all supported build targets."""
+    # (build env name, esptool --chip value, description)
+    targets = [
+        ("esp32",        "esp32",   "ESP32-WROOM, ESP32-WROVER, ESP32-MINI"),
+        ("esp32s2",      "esp32s2", "ESP32-S2"),
+        ("esp32s3",      "esp32s3", "ESP32-S3 (4 MB flash)"),
+        ("esp32s3_16mb", "esp32s3", "ESP32-S3 (16 MB flash)"),
+    ]
     file_list = ""
-    for m in mcus:
+    chip_list = ""
+    for env_name, chip, desc in targets:
+        chip_list += f"  {env_name:<14} - {desc}\n"
         file_list += f"""
-  {PROJECT_NAME}_{version}_{m}_flash.bin
-    -> Erstmaliges Flashen fuer {m.upper()}
-    -> esptool.py --chip {m} --baud 460800 write_flash 0x0 {PROJECT_NAME}_{version}_{m}_flash.bin
+  {PROJECT_NAME}_{version}_{env_name}_flash.bin
+    -> Erstmaliges Flashen fuer {desc}
+    -> esptool.py --chip {chip} --baud 460800 write_flash 0x0 {PROJECT_NAME}_{version}_{env_name}_flash.bin
 
-  {PROJECT_NAME}_{version}_{m}_ota.bin
-    -> OTA-Update fuer {m.upper()} via WebUI -> Tools -> OTA Update
+  {PROJECT_NAME}_{version}_{env_name}_ota.bin
+    -> OTA-Update fuer {desc} via WebUI -> Tools -> OTA Update
 """
     content = f"""{PROJECT_NAME} {version}
 {'=' * (len(PROJECT_NAME) + len(version) + 1)}
 
 Unterstuetzte Chips
 -------------------
-  esp32   - ESP32-WROOM, ESP32-WROVER, ESP32-MINI
-  esp32s2 - ESP32-S2
-  esp32s3 - ESP32-S3
-
+{chip_list}
 Dateien in diesem Release
 --------------------------
 {file_list}
 Positionssteuerung
 ------------------
 Dieser Build enthaelt zeitbasierte Positionssteuerung (0-100%) fuer Jarolift TDEF Rolllaeden.
+0% = geschlossen, 100% = offen (entspricht der Home Assistant Konvention).
 Kalibrierung erforderlich pro Kanal (Service-Seite -> Laufzeit-Kalibrierung).
 
 Quellcode
@@ -92,8 +98,11 @@ def merge_bin(source, target, env):
         os.makedirs(RELEASE_PATH, exist_ok=True)
 
     version    = extract_version()
-    flash_name = f"{PROJECT_NAME}_{version}_{mcu}_flash.bin"
-    ota_name   = f"{PROJECT_NAME}_{version}_{mcu}_ota.bin"
+    # Use the PlatformIO environment name (not the chip family) so that targets
+    # sharing the same MCU but a different flash size/partition table - e.g.
+    # esp32s3 (4MB) vs esp32s3_16mb (16MB) - don't overwrite each other's binary.
+    flash_name = f"{PROJECT_NAME}_{version}_{pioenv}_flash.bin"
+    ota_name   = f"{PROJECT_NAME}_{version}_{pioenv}_ota.bin"
 
     shutil.copyfile(merged_bin_path,  os.path.join(RELEASE_PATH, flash_name))
     shutil.copyfile(env.subst(APP_BIN), os.path.join(RELEASE_PATH, ota_name))

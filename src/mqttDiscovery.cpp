@@ -142,36 +142,36 @@ void mqttHaConfig(statType statType, const char *name, const char *deviceClass, 
       // Individual shutters with real position feedback.
       //
       // Our ESP publishes position 0–100 on status/shutter/N:
-      //   0   = fully open
-      //   100 = fully closed
+      //   0   = fully closed
+      //   100 = fully open
+      // This already matches Home Assistant's native cover convention,
+      // so no inversion is needed in either direction.
       //
       // HA state logic:
       //   stat_t  + val_tpl → "open" / "closed" / "stopped"
       //   pos_t   + pos_open/pos_clsd → position slider in HA (0–100, 0=closed in HA)
       //
-      // Threshold: position >= 75 → HA shows "closed", < 75 → "open"
+      // Threshold: position <= 25 → HA shows "closed", >= 100 → "open"
 
       sprintf(cmdTopic, "%s/cmd/shutter/%i", statePrefix, devCfg.num1);
       doc["cmd_t"] = cmdTopic;
 
-      // State: derive open/closed from position with 75% threshold
+      // State: derive open/closed from position with 25% threshold
       doc["stat_t"]      = stateTopic;
-      doc["val_tpl"]     = "{% if value | int >= 75 %}closed{% elif value | int > 0 %}stopped{% else %}open{% endif %}";
+      doc["val_tpl"]     = "{% if value | int <= 25 %}closed{% elif value | int < 100 %}stopped{% else %}open{% endif %}";
       doc["state_open"]  = "open";
       doc["state_closed"] = "closed";
       doc["state_stopped"] = "stopped";
 
       // Position feedback (for position slider in HA)
-      // HA convention: 0 = closed, 100 = open → invert our values
       doc["pos_t"]       = stateTopic;
-      doc["pos_open"]    = 0;    // our 0 = open  → HA pos_open = 0 (we tell HA 0 means open)
-      doc["pos_clsd"]    = 100;  // our 100 = closed
+      doc["pos_open"]    = 100;
+      doc["pos_clsd"]    = 0;
 
-      // Set-position: HA sends 0 (closed) – 100 (open), invert for our convention
+      // Set-position: same convention on both sides, no template needed
       char setPosTopicBuf[256];
       sprintf(setPosTopicBuf, "%s/cmd/shutter/%i", statePrefix, devCfg.num1);
       doc["set_pos_t"] = setPosTopicBuf;
-      doc["pos_tpl"]   = "{{ (100 - position) | int }}";
     }
 
   } else if (devType == DEV_BTN) {

@@ -9,13 +9,22 @@
 
 #define MAX_CMD 20
 #define SEND_CYCLE 500
-#define POS_OPEN 0
-#define POS_CLOSE 100
-#define POS_SHADE 90
+// Position convention: 0% = closed, 100% = open (matches Home Assistant)
+#define POS_OPEN 100
+#define POS_CLOSE 0
+#define POS_SHADE 10
 
 static muTimer cmdTimer = muTimer();
 static muTimer timerTimer = muTimer();
 static const char *TAG = "JARO"; // LOG TAG
+
+/** Channel label for log output: configured name, or "Ch N" fallback. */
+static const char *chName(uint8_t ch) {
+  static char buf[24];
+  if (ch < 16 && config.jaro.ch_name[ch][0]) return config.jaro.ch_name[ch];
+  snprintf(buf, sizeof(buf), "Ch %u", ch + 1u);
+  return buf;
+}
 
 std::queue<JaroCommand> jaroCmdQueue;
 
@@ -195,7 +204,7 @@ void jaroStopNow(uint8_t channel) {
   // Do NOT call shutterPosNotifyStop here – the caller (shutterPosUpdate)
   // updates the state itself immediately after this call.
   jarolift.cmdChannel(JaroliftController::CMD_STOP, channel);
-  ESP_LOGI(TAG, "immediate STOP - channel: %i", channel + 1);
+  ESP_LOGI(TAG, "immediate STOP - channel: %s", chName(channel));
 }
 
 void jaroliftSetup() {
@@ -241,28 +250,28 @@ void processJaroCommands() {
         jarolift.cmdChannel(JaroliftController::CMD_UP, cmd.single.channel);
         shutterPosNotifyUp(cmd.single.channel);
         mqttSendPosition(cmd.single.channel, POS_OPEN);
-        ESP_LOGI(TAG, "execute cmd: UP - channel: %i", cmd.single.channel + 1);
+        ESP_LOGI(TAG, "execute cmd: UP - channel: %s", chName(cmd.single.channel));
         break;
       case CMD_DOWN:
         jarolift.cmdChannel(JaroliftController::CMD_DOWN, cmd.single.channel);
         shutterPosNotifyDown(cmd.single.channel);
         mqttSendPosition(cmd.single.channel, POS_CLOSE);
-        ESP_LOGI(TAG, "execute cmd: DOWN - channel: %i", cmd.single.channel + 1);
+        ESP_LOGI(TAG, "execute cmd: DOWN - channel: %s", chName(cmd.single.channel));
         break;
       case CMD_STOP:
         jarolift.cmdChannel(JaroliftController::CMD_STOP, cmd.single.channel);
         shutterPosNotifyStop(cmd.single.channel);
         mqttSendPosition(cmd.single.channel, shutterPosGet(cmd.single.channel));
-        ESP_LOGI(TAG, "execute cmd: STOP - channel: %i", cmd.single.channel + 1);
+        ESP_LOGI(TAG, "execute cmd: STOP - channel: %s", chName(cmd.single.channel));
         break;
       case CMD_SET_SHADE:
         jarolift.cmdChannel(JaroliftController::CMD_SET_SHADE, cmd.single.channel);
         mqttSendPosition(cmd.single.channel, POS_SHADE);
-        ESP_LOGI(TAG, "execute cmd: SETSHADE - channel: %i", cmd.single.channel + 1);
+        ESP_LOGI(TAG, "execute cmd: SETSHADE - channel: %s", chName(cmd.single.channel));
         break;
       case CMD_SHADE:
         jarolift.cmdChannel(JaroliftController::CMD_SHADE, cmd.single.channel);
-        ESP_LOGI(TAG, "execute cmd: SHADE - channel: %i", cmd.single.channel + 1);
+        ESP_LOGI(TAG, "execute cmd: SHADE - channel: %s", chName(cmd.single.channel));
         break;
       }
     } else if (cmd.cmdType == JaroCommand::GROUP) {
@@ -291,27 +300,27 @@ void processJaroCommands() {
       switch (cmd.service.type) {
       case CMD_LEARN:
         jarolift.cmdLearn(cmd.service.channel);
-        ESP_LOGI(TAG, "execute service cmd: CMD_LEARN - channel: %i", cmd.service.channel + 1);
+        ESP_LOGI(TAG, "execute service cmd: CMD_LEARN - channel: %s", chName(cmd.service.channel));
         break;
       case CMD_UNLEARN:
         jarolift.cmdUnlearn(cmd.service.channel);
-        ESP_LOGI(TAG, "execute service cmd: CMD_UNLEARN - channel: %i", cmd.service.channel + 1);
+        ESP_LOGI(TAG, "execute service cmd: CMD_UNLEARN - channel: %s", chName(cmd.service.channel));
         break;
       case CMD_SET_END_POINT_UP:
         jarolift.cmdSetEndPointUp(cmd.service.channel);
-        ESP_LOGI(TAG, "execute service cmd: SET_END_POINT_UP - channel: %i", cmd.service.channel + 1);
+        ESP_LOGI(TAG, "execute service cmd: SET_END_POINT_UP - channel: %s", chName(cmd.service.channel));
         break;
       case CMD_DEL_END_POINT_UP:
         jarolift.cmdDeleteEndPointUp(cmd.service.channel);
-        ESP_LOGI(TAG, "execute service cmd: CMD_DEL_END_POINT_UP - channel: %i", cmd.service.channel + 1);
+        ESP_LOGI(TAG, "execute service cmd: CMD_DEL_END_POINT_UP - channel: %s", chName(cmd.service.channel));
         break;
       case CMD_SET_END_POINT_DOWN:
         jarolift.cmdSetEndPointDown(cmd.service.channel);
-        ESP_LOGI(TAG, "execute service cmd: SET_END_POINT_DOWN - channel: %i", cmd.service.channel + 1);
+        ESP_LOGI(TAG, "execute service cmd: SET_END_POINT_DOWN - channel: %s", chName(cmd.service.channel));
         break;
       case CMD_DEL_END_POINT_DOWN:
         jarolift.cmdDeleteEndPointDown(cmd.service.channel);
-        ESP_LOGI(TAG, "execute service cmd: CMD_DEL_END_POINT_DOWN - channel: %i", cmd.service.channel + 1);
+        ESP_LOGI(TAG, "execute service cmd: CMD_DEL_END_POINT_DOWN - channel: %s", chName(cmd.service.channel));
         break;
       }
     }

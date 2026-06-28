@@ -44,7 +44,7 @@ Controlling Jarolift(TM) TDEF 433MHz radio shutters via **ESP32** and **CC1101**
 ### Percentage-based Position Control
 
 The most significant addition in this fork is **time-based position control**.  
-Each roller shutter can now be moved to a specific position between 0% (fully open) and 100% (fully closed) — directly from the web interface, via MQTT, or through Home Assistant.
+Each roller shutter can now be moved to a specific position between 0% (fully closed) and 100% (fully open) — directly from the web interface, via MQTT, or through Home Assistant. This matches Home Assistant's own convention.
 
 > **How it works:** Since Jarolift motors do not report their actual position, the controller measures how long the motor takes to travel from fully open to fully closed (and back). Using this calibrated travel time, it calculates exactly when to stop the motor to reach any given position.
 
@@ -55,7 +55,7 @@ Each roller shutter can now be moved to a specific position between 0% (fully op
 - **Accurate timing** — the stop command is issued at the exact millisecond the motor's RF command is transmitted, eliminating timing errors from command queuing
 - **Position memory** — the last known position is saved to flash memory and restored after a reboot
 - **MQTT position control** — send a number (0–100) as payload to move a shutter to that position
-- **Home Assistant integration** — shutters appear as cover entities with a position slider; positions >= 75% are reported as "closed", below 75% as "open"
+- **Home Assistant integration** — shutters appear as cover entities with a position slider; positions <= 25% are reported as "closed", 100% as "open"
 
 ![Position Slider](Doc/webUI_position_slider.png)
 
@@ -79,19 +79,21 @@ The calibration measures the actual travel time of the motor in both directions.
 > [!TIP]
 > Calibration only needs to be done once per channel. The measured travel times survive reboots and are stored in the configuration file.
 
+If the automatically measured travel times aren't quite accurate, they can be manually corrected per channel (in seconds) on the **Settings** page (fields "Travel time DOWN" / "Travel time UP").
+
 ### Updated Home Assistant Discovery
 
 - Each shutter is now published as a **cover entity with a position slider** (0–100%)
 - A separate **Shade button** is added for each shutter
-- State logic: position >= 75% → `closed`, position > 0% → `stopped`, position = 0% → `open`
-- Set-position commands from HA are automatically inverted to match the ESP32 convention (0 = open, 100 = closed)
+- State logic: position <= 25% → `closed`, position < 100% → `stopped`, position = 100% → `open`
+- ESP32 and HA position conventions match (0 = closed, 100 = open) — no inversion needed
 
 ### Position via MQTT
 
 ```text
 command:    set shutter position (0-100%)
 topic:      ../cmd/shutter/1 ... cmd/shutter/16
-payload:    {0 ... 100}   (integer, 0 = fully open, 100 = fully closed)
+payload:    {0 ... 100}   (integer, 0 = fully closed, 100 = fully open)
 
 example:    move shutter 1 to 50%
 topic:      jarolift/cmd/shutter/1
@@ -444,8 +446,8 @@ payload:    {0b0000000000010101, 0x15, 21}
 Status:     position (0-100%)
 topic:      ../status/shutter/1 ... status/shutter/16
 payload:    {0 ... 100}
-            0   = fully open
-            100 = fully closed
+            0   = fully closed
+            100 = fully open
 ```
 
 > [!IMPORTANT]
@@ -469,7 +471,7 @@ MQTT Auto Discovery automatically registers all enabled shutters as **cover** en
 
 - **Position slider** — move shutters to any position 0–100%
 - **Shade button** — separate button per shutter for the shade command
-- **State logic** — position >= 75% shown as closed, below 75% as open
+- **State logic** — position <= 25% shown as closed, 100% as open
 
 <img src="Doc/webUI_ha2.png" alt="Home Assistant integration" width="75%">
 

@@ -70,7 +70,7 @@ void checkGPIO() {
         return true;
       }
     }
-    if (usedCount < MAX_GPIO - 1) {
+    if (usedCount < MAX_GPIO) {
       usedGPIOs[usedCount++] = gpio;
     }
     return false;
@@ -607,8 +607,6 @@ void configLoadFromFile() {
     EspStrUtil::readJSONstring(config.mqtt.server, sizeof(config.mqtt.server), doc["mqtt"]["server"]);
     EspStrUtil::readJSONstring(config.mqtt.user, sizeof(config.mqtt.user), doc["mqtt"]["user"]);
 
-    EspStrUtil::readJSONstring(config.mqtt.password, sizeof(config.mqtt.password), doc["mqtt"]["password"]);
-
     if (config.version == 0) {
       EspStrUtil::readJSONstring(config.mqtt.password, sizeof(config.mqtt.password), doc["mqtt"]["password"]);
     } else {
@@ -617,6 +615,7 @@ void configLoadFromFile() {
         // ESP_LOGD(TAG, "decrypted mqtt password: %s", config.mqtt.password);
       } else {
         ESP_LOGE(TAG, "error decrypting mqtt password");
+        config.mqtt.password[0] = '\0';
       }
     }
 

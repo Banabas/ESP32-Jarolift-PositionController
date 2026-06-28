@@ -4,8 +4,9 @@
  * Time-based position tracking for Jarolift TDEF roller shutters.
  *
  * Position convention
- *   0%   = fully open  (top mechanical end-stop)
- *   100% = fully closed (bottom mechanical end-stop)
+ *   0%   = fully closed (bottom mechanical end-stop)
+ *   100% = fully open    (top mechanical end-stop)
+ *   (matches Home Assistant's cover position convention)
  *
  * Stopping mechanism
  *   Stop commands are issued via jaroStopNow() which bypasses the 500ms
@@ -14,10 +15,10 @@
  *   so the accuracy does not depend on task scheduling jitter.
  *
  * Calibration – two phases
- *   Phase 1 (DOWN): shutter at 0% → shutterCalibDownStart() → CMD_DOWN
- *                   → shutter at 100% → CMD_STOP → shutterCalibDownFinish()
- *   Phase 2 (UP):   shutter at 100% → shutterCalibUpStart() → CMD_UP
- *                   → shutter at 0% → CMD_STOP → shutterCalibUpFinish()
+ *   Phase 1 (DOWN): shutter at 100% → shutterCalibDownStart() → CMD_DOWN
+ *                   → shutter at 0%   → CMD_STOP → shutterCalibDownFinish()
+ *   Phase 2 (UP):   shutter at 0%   → shutterCalibUpStart() → CMD_UP
+ *                   → shutter at 100% → CMD_STOP → shutterCalibUpFinish()
  *                   → configSaveToFile()
  *
  * If only Phase 1 is done, UP travel is estimated as DOWN × 1.2.
@@ -52,6 +53,9 @@ uint32_t shutterCalibDownFinish(uint8_t ch);
 void     shutterCalibUpStart(uint8_t ch);
 uint32_t shutterCalibUpFinish(uint8_t ch);
 bool     shutterCalibIsRunning(uint8_t ch);
+
+// Manual correction of measured travel times (ms) from the WebUI
+void     shutterSetTravelTime(uint8_t ch, uint32_t downMs, uint32_t upMs);
 
 // Legacy aliases (DOWN only)
 void     shutterCalibStart(uint8_t ch);
