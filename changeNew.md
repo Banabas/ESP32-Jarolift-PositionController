@@ -1,13 +1,11 @@
-# v1.21.1
+# v1.21.2
 
 ## what's new
 
-Small follow-up fix found right after publishing v1.21.0.
+### Longer log history
 
-### Remote signals are logged again regardless of MQTT state
-
-`mqttSendRemote()` returned immediately if MQTT was not connected (or disabled), which skipped the "received remote signal" log line entirely - so remote button presses no longer showed up in the log unless MQTT happened to be connected at that exact moment. The log line is now always written; only the MQTT status publish is skipped when there is no broker connection.
+The web log buffer now keeps 320 entries instead of 200, so more history is available before older entries scroll out (e.g. after several remote-control button presses).
 
 ## changelog
 
-- [FIX] Remote-control commands are logged again even when MQTT is disabled or disconnected
+- [FEATURE] Log buffer increased from 200 to 320 entries

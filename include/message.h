@@ -3,7 +3,7 @@
 
 /* D E C L A R A T I O N S ****************************************************/
 
-#define MAX_LOG_LINES 200 // max log lines
+#define MAX_LOG_LINES 320 // max log lines
 #define MAX_LOG_ENTRY 128 // max length of one entry
 
 struct s_logdata {
