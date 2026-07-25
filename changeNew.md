@@ -1,11 +1,16 @@
-# v1.21.2
+# v1.21.3
 
 ## what's new
 
-### Longer log history
+### Accurate position tracking for remote-controlled moves
 
-The web log buffer now keeps 320 entries instead of 200, so more history is available before older entries scroll out (e.g. after several remote-control button presses).
+Commands sent by a physical Jarolift remote (or a sensor acting as one) previously reset the stored position to a flat 0% / 100%, and STOP was ignored entirely. A shutter driven by hand - e.g. stopped halfway, then moved the other way - ended up with a wrong estimated position. Remote-triggered UP/DOWN/STOP now feed the same time-based position tracker that is used for the controller's own commands. Channels without a calibrated travel time keep the previous behaviour.
+
+### More detail in the log
+
+Start and end of a tracked move are now logged with channel name and position.
 
 ## changelog
 
-- [FEATURE] Log buffer increased from 200 to 320 entries
+- [FEATURE] Remote-triggered UP/DOWN/STOP update the time-based position tracker
+- [FEATURE] Log start and end of tracked moves with channel name and position

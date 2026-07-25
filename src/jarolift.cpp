@@ -119,14 +119,35 @@ void mqttSendRemote(uint32_t serial, int8_t function, uint16_t channel) {
       // check if this remote is registered for one or more shutter
       for (int j = 0; j < 16; j++) {
         if (config.jaro.remote_mask[i] & (1 << j)) {
+          // Feed remote-triggered moves into the same time-based position
+          // tracker used for our own commands, so a shutter operated
+          // manually via remote (e.g. stopped mid-travel, then driven the
+          // other way) keeps an accurate estimated position.
+          const bool tracked = config.jaro.ch_enable[j] && config.jaro.ch_travel_time[j] != 0;
           switch (function) {
-          case 0x2:
-            mqttSendPosition(j, POS_CLOSE);
+          case 0x2: // DOWN
+            if (tracked) {
+              shutterPosNotifyDown(j);
+              mqttSendPosition(j, shutterPosGet(j));
+            } else {
+              mqttSendPosition(j, POS_CLOSE);
+            }
             break;
-          case 0x8:
-            mqttSendPosition(j, POS_OPEN);
+          case 0x8: // UP
+            if (tracked) {
+              shutterPosNotifyUp(j);
+              mqttSendPosition(j, shutterPosGet(j));
+            } else {
+              mqttSendPosition(j, POS_OPEN);
+            }
             break;
-          case 0x3:
+          case 0x4: // STOP
+            if (tracked) {
+              shutterPosNotifyStop(j);
+              mqttSendPosition(j, shutterPosGet(j));
+            }
+            break;
+          case 0x3: // SHADE
             mqttSendPosition(j, POS_SHADE);
             break;
           default:

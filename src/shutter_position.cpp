@@ -246,6 +246,7 @@ void shutterPosNotifyUp(uint8_t ch) {
         s[ch].pendingMove = false;
         if (s[ch].target >= 0 && s[ch].target <= s[ch].pos)
             s[ch].target = -1;
+        ESP_LOGI(TAG, "%s: UP from %d%% (running to top end-stop)", chName(ch), s[ch].pos);
     }
 }
 
@@ -283,6 +284,7 @@ void shutterPosNotifyDown(uint8_t ch) {
         s[ch].pendingMove = false;
         if (s[ch].target >= 0 && s[ch].target >= s[ch].pos)
             s[ch].target = -1;
+        ESP_LOGI(TAG, "%s: DOWN from %d%% (running to bottom end-stop)", chName(ch), s[ch].pos);
     }
 }
 
@@ -294,6 +296,7 @@ void shutterPosNotifyStop(uint8_t ch) {
     s[ch].stopAtMs    = 0;
     s[ch].pendingMove = false;
     config.jaro.ch_last_pos[ch] = s[ch].pos;
+    ESP_LOGI(TAG, "%s: stopped at %d%%", chName(ch), s[ch].pos);
 }
 
 // ─── Position overrides ───────────────────────────────────────────────────────
