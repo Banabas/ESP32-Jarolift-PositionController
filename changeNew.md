@@ -1,16 +1,24 @@
-# v1.21.3
+# v1.21.4
 
 ## what's new
 
-### Accurate position tracking for remote-controlled moves
+Bug fixes reported in [issue #1](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/1) - thanks to @airwolf-it for the detailed report. Three of them are inherited from upstream.
 
-Commands sent by a physical Jarolift remote (or a sensor acting as one) previously reset the stored position to a flat 0% / 100%, and STOP was ignored entirely. A shutter driven by hand - e.g. stopped halfway, then moved the other way - ended up with a wrong estimated position. Remote-triggered UP/DOWN/STOP now feed the same time-based position tracker that is used for the controller's own commands. Channels without a calibrated travel time keep the previous behaviour.
+### Reception now works right after boot
 
-### More detail in the log
+`begin()` attached the RX interrupt but never put the CC1101 into RX state, leaving the chip in IDLE. Reception only started working once the controller had transmitted something, which enters RX as a side effect - so on a freshly booted device remote signals were silently ignored.
 
-Start and end of a tracked move are now logged with channel name and position.
+### The "new learn mode" switch works
+
+Two problems kept the switch from doing anything. A copy/paste leftover from the log-level handling forced `learn_mode` back to on whenever it was stored as off, and `setLegacyLearnMode()` was never called, so the configured value never reached the controller. Both are fixed; the switch now also takes effect immediately instead of only after a restart. Receivers that need the legacy rear-button learn method (button code `0x1`) can be used again.
+
+### Builds on Linux
+
+`Dusk2Dawn` included `<Math.h>` instead of `<math.h>`, which fails on case-sensitive filesystems.
 
 ## changelog
 
-- [FEATURE] Remote-triggered UP/DOWN/STOP update the time-based position tracker
-- [FEATURE] Log start and end of tracked moves with channel name and position
+- [FIX] CC1101 now enters RX state at the end of `begin()` - remote reception works on a freshly booted device
+- [FIX] `learn_mode` is no longer forced back to on when saved or loaded as off
+- [FIX] `setLegacyLearnMode()` is called from `jaroliftSetup()`, so the WebUI switch reaches the controller
+- [FIX] `Dusk2Dawn` includes `<math.h>` in the correct case - fixes the build on Linux

@@ -8,7 +8,7 @@
 #define Dusk2Dawn_h
 
   #include "Arduino.h"
-  #include <Math.h>
+  #include <math.h>
 
   // Zenith angles for each twilight mode
   #define ZENITH_REAL        90.833f   // standard sunrise/sunset (refraction + solar disc)

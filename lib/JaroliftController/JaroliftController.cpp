@@ -878,6 +878,11 @@ void JaroliftController::begin() {
   pinMode(gpio_.gdo2, INPUT_PULLUP);
   attachInterrupt(gpio_.gdo2, radioRxMeasureISR, CHANGE);
 
+  // The CC1101 is left in IDLE after init(), so without this the receiver
+  // stays deaf until the first transmission happens to enter RX as a side
+  // effect - remote reception did nothing on a freshly booted device.
+  enterRx();
+
   initOK_ = true;
 }
 

@@ -5,7 +5,7 @@
  */
 
 #include "Arduino.h"
-#include <Math.h>
+#include <math.h>
 #include "Dusk2Dawn.h"
 
 Dusk2Dawn::Dusk2Dawn(float latitude, float longitude, float timezone) {
