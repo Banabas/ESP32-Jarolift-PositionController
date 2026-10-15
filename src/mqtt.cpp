@@ -364,15 +364,17 @@ void processMqttMessage() {
     // Shutter commands
   } else if (channel != -1) {
     if (channel >= 1 && channel <= 16) {
-      if (strcasecmp(msgCpy.payload, "UP") == 0 || strcasecmp(msgCpy.payload, "OPEN") == 0 || strcmp(msgCpy.payload, "0") == 0) {
+      // Only text commands here - numeric payloads are target positions (0-100 %),
+      // so the legacy digit commands 0-4 would collide with them.
+      if (strcasecmp(msgCpy.payload, "UP") == 0 || strcasecmp(msgCpy.payload, "OPEN") == 0) {
         jaroCmd(CMD_UP, channel - 1);
-      } else if (strcasecmp(msgCpy.payload, "DOWN") == 0 || strcasecmp(msgCpy.payload, "CLOSE") == 0 || strcmp(msgCpy.payload, "1") == 0) {
+      } else if (strcasecmp(msgCpy.payload, "DOWN") == 0 || strcasecmp(msgCpy.payload, "CLOSE") == 0) {
         jaroCmd(CMD_DOWN, channel - 1);
-      } else if (strcasecmp(msgCpy.payload, "STOP") == 0 || strcmp(msgCpy.payload, "2") == 0) {
+      } else if (strcasecmp(msgCpy.payload, "STOP") == 0) {
         jaroCmd(CMD_STOP, channel - 1);
-      } else if (strcasecmp(msgCpy.payload, "SHADE") == 0 || strcmp(msgCpy.payload, "3") == 0) {
+      } else if (strcasecmp(msgCpy.payload, "SHADE") == 0) {
         jaroCmd(CMD_SHADE, channel - 1);
-      } else if (strcasecmp(msgCpy.payload, "SETSHADE") == 0 || strcmp(msgCpy.payload, "4") == 0) {
+      } else if (strcasecmp(msgCpy.payload, "SETSHADE") == 0) {
         jaroCmd(CMD_SET_SHADE, channel - 1);
       } else {
         // Numerische Payload = Zielposition in % ?

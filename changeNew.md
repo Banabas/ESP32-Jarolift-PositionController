@@ -1,24 +1,19 @@
-# v1.21.4
+# v1.21.5
 
 ## what's new
 
-Bug fixes reported in [issue #1](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/1) - thanks to @airwolf-it for the detailed report. Three of them are inherited from upstream.
+Bug fix reported in [issue #8](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/8) - thanks to @Reinhard-M.
 
-### Reception now works right after boot
+### Position 0-4 % via MQTT works
 
-`begin()` attached the RX interrupt but never put the CC1101 into RX state, leaving the chip in IDLE. Reception only started working once the controller had transmitted something, which enters RX as a side effect - so on a freshly booted device remote signals were silently ignored.
+Shutter topics (`../cmd/shutter/N`) accepted the digits `0`-`4` as legacy commands (`0` = UP, `1` = DOWN, `2` = STOP, `3` = SHADE, `4` = SETSHADE). The same topic also takes a numeric target position, so sending position `0` opened the shutter instead of closing it, and positions 1-4 % never reached the position control. This also affected the Home Assistant position slider.
 
-### The "new learn mode" switch works
+Shutter topics now only accept the text commands `UP`/`OPEN`, `DOWN`/`CLOSE`, `STOP`, `SHADE` and `SETSHADE`; every number from 0 to 100 is a target position.
 
-Two problems kept the switch from doing anything. A copy/paste leftover from the log-level handling forced `learn_mode` back to on whenever it was stored as off, and `setLegacyLearnMode()` was never called, so the configured value never reached the controller. Both are fixed; the switch now also takes effect immediately instead of only after a restart. Receivers that need the legacy rear-button learn method (button code `0x1`) can be used again.
-
-### Builds on Linux
-
-`Dusk2Dawn` included `<Math.h>` instead of `<math.h>`, which fails on case-sensitive filesystems.
+> [!IMPORTANT]
+> If you send the digits `0`-`4` as commands to `../cmd/shutter/N`, switch to the text commands. Group topics (`../cmd/group/N`) are unchanged and still accept the digits.
 
 ## changelog
 
-- [FIX] CC1101 now enters RX state at the end of `begin()` - remote reception works on a freshly booted device
-- [FIX] `learn_mode` is no longer forced back to on when saved or loaded as off
-- [FIX] `setLegacyLearnMode()` is called from `jaroliftSetup()`, so the WebUI switch reaches the controller
-- [FIX] `Dusk2Dawn` includes `<math.h>` in the correct case - fixes the build on Linux
+- [FIX] Numeric payloads on shutter topics are always treated as target positions - `0` closes the shutter instead of opening it (#8)
+- [BREAKING] Digit commands `0`-`4` are no longer accepted on `../cmd/shutter/N` - use `UP`, `DOWN`, `STOP`, `SHADE`, `SETSHADE`

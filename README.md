@@ -391,19 +391,19 @@ Trigger options:
 ```text
 command:    shutter up
 topic:      ../cmd/shutter/1 ... cmd/shutter/16
-payload:    {UP, OPEN, 0}
+payload:    {UP, OPEN}
 
 command:    shutter down
 topic:      ../cmd/shutter/1 ... cmd/shutter/16
-payload:    {DOWN, CLOSE, 1}
+payload:    {DOWN, CLOSE}
 
 command:    shutter stop
 topic:      ../cmd/shutter/1 ... cmd/shutter/16
-payload:    {STOP, 2}
+payload:    {STOP}
 
 command:    shutter shade
 topic:      ../cmd/shutter/1 ... cmd/shutter/16
-payload:    {SHADE, 3}
+payload:    {SHADE}
 
 command:    set position (0-100%)  <- new in this fork
 topic:      ../cmd/shutter/1 ... cmd/shutter/16

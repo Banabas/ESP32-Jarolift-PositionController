@@ -388,19 +388,19 @@ Auslöse-Optionen:
 ```text
 Befehl:     Rollladen hoch
 Topic:      ../cmd/shutter/1 ... cmd/shutter/16
-Payload:    {UP, OPEN, 0}
+Payload:    {UP, OPEN}
 
 Befehl:     Rollladen runter
 Topic:      ../cmd/shutter/1 ... cmd/shutter/16
-Payload:    {DOWN, CLOSE, 1}
+Payload:    {DOWN, CLOSE}
 
 Befehl:     Rollladen stopp
 Topic:      ../cmd/shutter/1 ... cmd/shutter/16
-Payload:    {STOP, 2}
+Payload:    {STOP}
 
 Befehl:     Rollladen Schatten
 Topic:      ../cmd/shutter/1 ... cmd/shutter/16
-Payload:    {SHADE, 3}
+Payload:    {SHADE}
 
 Befehl:     Position setzen (0-100%)  <- neu in diesem Fork
 Topic:      ../cmd/shutter/1 ... cmd/shutter/16
