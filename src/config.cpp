@@ -320,10 +320,13 @@ static void serializeChannelTimer(JsonObject &obj, const s_channel_timer &ct) {
   obj["friday"]    = ct.friday;
   obj["saturday"]  = ct.saturday;
   obj["sunday"]    = ct.sunday;
+  obj["pos_target"] = ct.pos_target;
   JsonObject up   = obj["up"].to<JsonObject>();
   JsonObject down = obj["down"].to<JsonObject>();
+  JsonObject pos  = obj["pos"].to<JsonObject>();
   serializeTimerEvent(up,   ct.up);
   serializeTimerEvent(down, ct.down);
+  serializeTimerEvent(pos,  ct.pos);
 }
 
 // Helper: deserialize one s_channel_timer
@@ -338,6 +341,9 @@ static void deserializeChannelTimer(JsonObject obj, s_channel_timer &ct) {
   ct.sunday    = obj["sunday"]    | false;
   if (obj["up"].is<JsonObject>())   deserializeTimerEvent(obj["up"].as<JsonObject>(),   ct.up);
   if (obj["down"].is<JsonObject>()) deserializeTimerEvent(obj["down"].as<JsonObject>(), ct.down);
+  if (obj["pos"].is<JsonObject>())  deserializeTimerEvent(obj["pos"].as<JsonObject>(),  ct.pos);
+  ct.pos_target = obj["pos_target"] | 50;
+  if (ct.pos_target > 100) ct.pos_target = 100;
 }
 
 void configSaveToFile() {

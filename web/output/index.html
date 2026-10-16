@@ -730,6 +730,7 @@
         data-i18n="timer_shutters" data-i18n="timer_groups"
         data-i18n="no_timer_active" data-i18n="timer_overview"
         data-i18n="name" data-i18n="cmd_up" data-i18n="cmd_down" data-i18n="weekdays"
+        data-i18n="timer_position" data-i18n="timer_pos_target"
       -->
       <!-- Tab-3 -->
       <div id="tab3" class="tab-content">
@@ -753,10 +754,11 @@
                 <th data-i18n="name"></th>
                 <th data-i18n="cmd_up"></th>
                 <th data-i18n="cmd_down"></th>
+                <th data-i18n="timer_position"></th>
                 <th data-i18n="weekdays"></th>
               </tr></thead>
               <tbody id="timer_overview_table">
-                <tr><td colspan="4" style="text-align:center;color:var(--muted-color)">-</td></tr>
+                <tr><td colspan="5" style="text-align:center;color:var(--muted-color)">-</td></tr>
               </tbody>
             </table>
           </article>
@@ -823,6 +825,10 @@ function buildEventBlock(p, dir, labelKey) {
    +'<input type="checkbox" id="'+p+'_'+d+'_enable" name="'+p+'_'+d+'_enable" role="switch">'
    +'<label for="'+p+'_'+d+'_enable" data-'+'i18n="'+labelKey+'" style="margin:0;font-weight:600"></label>'
    +'</div>'
+   +(d==='pos'
+     ?'<input type="number" id="'+p+'_pos_target" name="'+p+'_pos_target" min="0" max="100" placeholder="50" step="1">'
+      +'<label data-'+'i18n="timer_pos_target"></label>'
+     :'')
    +'<select id="'+p+'_'+d+'_type" name="'+p+'_'+d+'_type"'
    +' onchange="toggleTimerType(this,\''+p+'_'+d+'\')">'
    +'<option value="0" data-i18n="time"></option>'
@@ -908,6 +914,7 @@ function buildCard(p, isGroup) {
    +'<div style="display:flex;gap:12px;flex-wrap:wrap">'
    +buildEventBlock(p,'up','cmd_up')
    +buildEventBlock(p,'down','cmd_down')
+   +buildEventBlock(p,'pos','timer_position')
    +'</div>'
    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
    +buildDays(p)
@@ -1039,8 +1046,16 @@ function buildTimerOverview() {
 
   // Wochenend-Spalten nur wenn nötig
   var hasWe = entries.some(function(e) {
-    return isChecked(e.p+'_up_we_enable') || isChecked(e.p+'_down_we_enable');
+    return isChecked(e.p+'_up_we_enable') || isChecked(e.p+'_down_we_enable')
+        || isChecked(e.p+'_pos_we_enable');
   });
+
+  function fmtPos(p) {
+    var t = fmtTime(p, 'pos');
+    if (t === '-') return t;
+    var tg = document.getElementById(p+'_pos_target');
+    return t + ' → ' + (tg && tg.value !== '' ? tg.value : '50') + '%';
+  }
 
   // Header setzen
   var thead = document.getElementById('timer_overview_head');
@@ -1049,6 +1064,8 @@ function buildTimerOverview() {
       + (hasWe ? '<th style="color:var(--primary)">Hoch Sa+So</th>' : '')
       + '<th>Runter</th>'
       + (hasWe ? '<th style="color:var(--primary)">Runter Sa+So</th>' : '')
+      + '<th>Position</th>'
+      + (hasWe ? '<th style="color:var(--primary)">Position Sa+So</th>' : '')
       + '<th>Wochentage</th></tr>';
   }
 
@@ -1057,19 +1074,21 @@ function buildTimerOverview() {
   entries.forEach(function(e) {
     var nm = document.getElementById(e.p+'_name');
     var name = nm ? nm.textContent : e.p;
-    var weUp = fmtWeTime(e.p, 'up'), weDn = fmtWeTime(e.p, 'down');
+    var weUp = fmtWeTime(e.p, 'up'), weDn = fmtWeTime(e.p, 'down'), wePos = fmtWeTime(e.p, 'pos');
     rows += '<tr>'
       + '<td>'+(e.grp?'<em>'+name+'</em>':name)+'</td>'
       + '<td>'+fmtTime(e.p,'up')+'</td>'
       + (hasWe ? '<td style="color:var(--primary)">'+(weUp||'–')+'</td>' : '')
       + '<td>'+fmtTime(e.p,'down')+'</td>'
       + (hasWe ? '<td style="color:var(--primary)">'+(weDn||'–')+'</td>' : '')
+      + '<td>'+fmtPos(e.p)+'</td>'
+      + (hasWe ? '<td style="color:var(--primary)">'+(wePos||'–')+'</td>' : '')
       + '<td>'+fmtDays(e.p)+'</td>'
       + '</tr>';
   });
 
   var tbl = document.getElementById('timer_overview_table');
-  if (tbl) tbl.innerHTML = rows || '<tr><td colspan="'+(hasWe?6:4)+'" style="text-align:center;color:var(--muted-color)">-</td></tr>';
+  if (tbl) tbl.innerHTML = rows || '<tr><td colspan="'+(hasWe?8:5)+'" style="text-align:center;color:var(--muted-color)">-</td></tr>';
 }
 
 // Direkt ausführen - Script steht am Ende des DOM-Abschnitts

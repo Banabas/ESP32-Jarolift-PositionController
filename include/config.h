@@ -4,7 +4,7 @@
 /*-------------------------------------------------------------------------------
 General Configuration
 --------------------------------------------------------------------------------*/
-#define VERSION "v1.21.5" // internal program version
+#define VERSION "v1.22.0" // internal program version
 
 #define WIFI_RECONNECT 30000 // Delay between wifi reconnection tries
 #define MQTT_RECONNECT 10000 // Delay between mqtt reconnection tries
@@ -56,11 +56,13 @@ struct s_timer_event {
   int8_t  weekend_horizon_value;
 };
 
-// Per-channel/group timer: up event + down event + weekdays
+// Per-channel/group timer: up event + down event + position event + weekdays
 struct s_channel_timer {
   bool          enable;
   s_timer_event up;
   s_timer_event down;
+  s_timer_event pos;        // move to pos_target (needs calibrated travel time)
+  uint8_t       pos_target; // 0 = closed .. 100 = open
   bool monday;
   bool tuesday;
   bool wednesday;

@@ -127,7 +127,7 @@ Payload:    50
   Gruppen definieren, um mehrere Rolläden gleichzeitig zu steuern.
 
 - **Timer-Funktion:**
-  Jeder Kanal und jede Gruppe hat einen eigenen Timer mit separaten Auf- und Ab-Ereignissen. Unterstützt feste Uhrzeit, Sonnenaufgang/Sonnenuntergang mit konfigurierbarem Astro-Modus (zivil, nautisch, astronomisch, Horizont) sowie optionalem Wochenend-Override.
+  Jeder Kanal und jede Gruppe hat einen eigenen Timer mit separaten Auf- und Ab-Ereignissen. Neben Auf/Ab kann der Timer auch eine Zielposition in % anfahren. Unterstützt feste Uhrzeit, Sonnenaufgang/Sonnenuntergang mit konfigurierbarem Astro-Modus (zivil, nautisch, astronomisch, Horizont) sowie optionalem Wochenend-Override.
 
 -----
 
@@ -361,7 +361,9 @@ Konfigurierte Gruppen können genauso bedient werden wie einzelne Rolläden.
 
 ## Timer
 
-Jeder Kanal und jede Gruppe hat einen eigenen Timer mit separaten **Auf-** und **Ab-Ereignissen** sowie konfigurierbaren Wochentagen.
+Jeder Kanal und jede Gruppe hat einen eigenen Timer mit separaten **Auf-** und **Ab-Ereignissen**, einem Ereignis **Position anfahren** sowie konfigurierbaren Wochentagen.
+
+**Position anfahren** fährt den Rollladen auf eine einstellbare Zielposition (0 % = zu, 100 % = offen), z.B. für eine Beschattung am Mittag. Dafür muss die Laufzeit des Kanals kalibriert sein.
 
 Auslöse-Optionen:
 

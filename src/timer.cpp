@@ -114,6 +114,16 @@ static bool eventTriggered(const s_timer_event &ev, uint8_t curH, uint8_t curM, 
   return (evH == curH && evM == curM);
 }
 
+// ─── Position event ───────────────────────────────────────────────────────────
+
+static void jaroCmdCb(JaroCmdType t, uint8_t ch) { jaroCmd(t, ch); }
+
+static void timerMoveToPos(uint8_t ch, uint8_t target) {
+  if (!shutterPosSetTarget(ch, (int8_t)target, jaroCmdCb, jaroCmdCb, jaroCmdCb)) {
+    ESP_LOGW(TAG, "ch %d: timer position %d%% ignored - not calibrated", ch + 1, target);
+  }
+}
+
 // ─── Timer cyclic ─────────────────────────────────────────────────────────────
 
 void timerCyclic() {
@@ -148,6 +158,11 @@ void timerCyclic() {
       ESP_LOGI(TAG, "Ch-Timer ch %d DOWN", ch + 1);
       jaroCmd(CMD_DOWN, (uint8_t)ch);
     }
+    if (ct.pos.enable && (dayOk || (isWeekend && ct.pos.weekend_enable)) &&
+        eventTriggered(ct.pos, H, M, W)) {
+      ESP_LOGI(TAG, "Ch-Timer ch %d POSITION %d%%", ch + 1, ct.pos_target);
+      timerMoveToPos((uint8_t)ch, ct.pos_target);
+    }
   }
 
   // ── Per-group timers ──────────────────────────────────────────────────────
@@ -165,6 +180,16 @@ void timerCyclic() {
         eventTriggered(gt.down, H, M, W)) {
       ESP_LOGI(TAG, "Grp-Timer grp %d DOWN", g + 1);
       jaroCmd(CMD_GRP_DOWN, config.jaro.grp_mask[g]);
+    }
+    if (gt.pos.enable && (dayOk || (isWeekend && gt.pos.weekend_enable)) &&
+        eventTriggered(gt.pos, H, M, W)) {
+      // No group telegram for positions - every channel gets its own move/stop
+      ESP_LOGI(TAG, "Grp-Timer grp %d POSITION %d%%", g + 1, gt.pos_target);
+      for (uint8_t ch = 0; ch < 16; ch++) {
+        if ((config.jaro.grp_mask[g] & (1 << ch)) && config.jaro.ch_enable[ch]) {
+          timerMoveToPos(ch, gt.pos_target);
+        }
+      }
     }
   }
 }

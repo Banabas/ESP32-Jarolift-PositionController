@@ -1,19 +1,18 @@
-# v1.21.5
+# v1.22.0
 
 ## what's new
 
-Bug fix reported in [issue #8](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/8) - thanks to @Reinhard-M.
+Feature request from [discussion #2](https://github.com/Banabas/ESP32-Jarolift-PositionController/discussions/2) - thanks to @ruppik.
 
-### Position 0-4 % via MQTT works
+### Timer can move shutters to a position
 
-Shutter topics (`../cmd/shutter/N`) accepted the digits `0`-`4` as legacy commands (`0` = UP, `1` = DOWN, `2` = STOP, `3` = SHADE, `4` = SETSHADE). The same topic also takes a numeric target position, so sending position `0` opened the shutter instead of closing it, and positions 1-4 % never reached the position control. This also affected the Home Assistant position slider.
+Every channel and group timer now has a third event **Go to position** next to UP and DOWN. It moves the shutter to a configurable target position (0 % = closed, 100 % = open), for example a shading position at noon. This works for motors that do not support the built-in shade function.
 
-Shutter topics now only accept the text commands `UP`/`OPEN`, `DOWN`/`CLOSE`, `STOP`, `SHADE` and `SETSHADE`; every number from 0 to 100 is a target position.
+The event offers the same trigger options as UP and DOWN: fixed time, sunrise/sunset with astro mode and offset, and the weekend override.
 
-> [!IMPORTANT]
-> If you send the digits `0`-`4` as commands to `../cmd/shutter/N`, switch to the text commands. Group topics (`../cmd/group/N`) are unchanged and still accept the digits.
+> [!NOTE]
+> Position moves need a calibrated travel time. Uncalibrated channels ignore the event and write a warning to the log. For group timers each channel in the group is moved separately.
 
 ## changelog
 
-- [FIX] Numeric payloads on shutter topics are always treated as target positions - `0` closes the shutter instead of opening it (#8)
-- [BREAKING] Digit commands `0`-`4` are no longer accepted on `../cmd/shutter/N` - use `UP`, `DOWN`, `STOP`, `SHADE`, `SETSHADE`
+- [FEATURE] Timer: new "Go to position" event per channel and group timer with a target position in % (#2)

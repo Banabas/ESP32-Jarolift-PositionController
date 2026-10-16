@@ -187,10 +187,10 @@ void updateTimerElements() {
   JsonDocument timerDoc;
   char id[48]; char prefix[48];
 
-  // Channel timers - in 4 Paketen je 4 Kanaele senden
-  for (int batch = 0; batch < 4; batch++) {
+  // Channel timers - in 8 Paketen je 2 Kanaele senden
+  for (int batch = 0; batch < 8; batch++) {
     webUI.initJsonBuffer(timerDoc);
-    for (int i = batch*4; i < batch*4+4 && i < 16; i++) {
+    for (int i = batch*2; i < batch*2+2 && i < 16; i++) {
       snprintf(id, sizeof(id), "ch_timer_%d_monday", i);    webUI.addJson(timerDoc, id, config.ch_timer[i].monday);
       snprintf(id, sizeof(id), "ch_timer_%d_tuesday", i);   webUI.addJson(timerDoc, id, config.ch_timer[i].tuesday);
       snprintf(id, sizeof(id), "ch_timer_%d_wednesday", i); webUI.addJson(timerDoc, id, config.ch_timer[i].wednesday);
@@ -202,13 +202,17 @@ void updateTimerElements() {
       sendTimerEventFields(timerDoc, prefix, config.ch_timer[i].up);
       snprintf(prefix, sizeof(prefix), "ch_timer_%d_down", i);
       sendTimerEventFields(timerDoc, prefix, config.ch_timer[i].down);
+      snprintf(prefix, sizeof(prefix), "ch_timer_%d_pos", i);
+      sendTimerEventFields(timerDoc, prefix, config.ch_timer[i].pos);
+      snprintf(id, sizeof(id), "ch_timer_%d_pos_target", i); webUI.addJson(timerDoc, id, (int)config.ch_timer[i].pos_target);
     }
     webUI.wsUpdateWebJSON(timerDoc);
   }
 
-  // Group timers - ein Paket
+  // Group timers - in 2 Paketen je 3 Gruppen senden
+  for (int batch = 0; batch < 2; batch++) {
   webUI.initJsonBuffer(timerDoc);
-  for (int i = 0; i < 6; i++) {
+  for (int i = batch*3; i < batch*3+3 && i < 6; i++) {
     snprintf(id, sizeof(id), "grp_timer_%d_monday", i);    webUI.addJson(timerDoc, id, config.grp_timer[i].monday);
     snprintf(id, sizeof(id), "grp_timer_%d_tuesday", i);   webUI.addJson(timerDoc, id, config.grp_timer[i].tuesday);
     snprintf(id, sizeof(id), "grp_timer_%d_wednesday", i); webUI.addJson(timerDoc, id, config.grp_timer[i].wednesday);
@@ -220,8 +224,12 @@ void updateTimerElements() {
     sendTimerEventFields(timerDoc, prefix, config.grp_timer[i].up);
     snprintf(prefix, sizeof(prefix), "grp_timer_%d_down", i);
     sendTimerEventFields(timerDoc, prefix, config.grp_timer[i].down);
+    snprintf(prefix, sizeof(prefix), "grp_timer_%d_pos", i);
+    sendTimerEventFields(timerDoc, prefix, config.grp_timer[i].pos);
+    snprintf(id, sizeof(id), "grp_timer_%d_pos_target", i); webUI.addJson(timerDoc, id, (int)config.grp_timer[i].pos_target);
   }
   webUI.wsUpdateWebJSON(timerDoc);
+  }
 }
 
 void updateSystemInfoElementsStatic() {

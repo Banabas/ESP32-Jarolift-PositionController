@@ -308,4 +308,12 @@ const user_translations = {
     de: "Keine aktiven Timer",
     en: "No active timers",
   },
+  timer_position: {
+    de: "Position anfahren",
+    en: "Go to position",
+  },
+  timer_pos_target: {
+    de: "Zielposition in % (0 = zu, 100 = offen)",
+    en: "target position in % (0 = closed, 100 = open)",
+  },
 };

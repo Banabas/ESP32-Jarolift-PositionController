@@ -127,7 +127,7 @@ payload:    50
   Define shutter groups to control several shutters at once.
 
 - **Timer function:**
-  Each channel and group has its own timer with separate up and down events. Supports fixed time, sunrise/sunset with configurable astro mode (civil, nautical, astronomical, horizon) and optional weekend override.
+  Each channel and group has its own timer with separate up and down events. Besides up/down the timer can also move to a target position in %. Supports fixed time, sunrise/sunset with configurable astro mode (civil, nautical, astronomical, horizon) and optional weekend override.
 
 -----
 
@@ -364,7 +364,9 @@ Groups configured in the settings can be controlled the same way as individual s
 
 ## Timer
 
-Each channel and group has its own timer with separate **up** and **down** events and configurable weekdays.
+Each channel and group has its own timer with separate **up** and **down** events, a **go to position** event and configurable weekdays.
+
+**Go to position** moves the shutter to a configurable target position (0 % = closed, 100 % = open), e.g. for shading at noon. The channel's travel time must be calibrated.
 
 Trigger options:
 

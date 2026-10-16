@@ -436,11 +436,15 @@ void webCallback(const char *elementId, const char *value) {
     snprintf(id, sizeof(id), "%s_saturday",  prefix); if (strcmp(elementId, id) == 0) { config.ch_timer[i].saturday  = EspStrUtil::stringToBool(value); }
     snprintf(id, sizeof(id), "%s_sunday",    prefix); if (strcmp(elementId, id) == 0) { config.ch_timer[i].sunday    = EspStrUtil::stringToBool(value); }
 
-    char upPrefix[48], downPrefix[48];
+    char upPrefix[48], downPrefix[48], posPrefix[48];
     snprintf(upPrefix,   sizeof(upPrefix),   "%s_up",   prefix);
     snprintf(downPrefix, sizeof(downPrefix), "%s_down", prefix);
     processTimerEventField(elementId, value, upPrefix,   config.ch_timer[i].up);
     processTimerEventField(elementId, value, downPrefix, config.ch_timer[i].down);
+    snprintf(posPrefix, sizeof(posPrefix), "%s_pos", prefix);
+    processTimerEventField(elementId, value, posPrefix,  config.ch_timer[i].pos);
+    snprintf(id, sizeof(id), "%s_pos_target", prefix);
+    if (strcmp(elementId, id) == 0) { config.ch_timer[i].pos_target = (uint8_t)constrain(atoi(value), 0, 100); }
   }
   } // end ch_timer_ check
 
@@ -460,11 +464,15 @@ void webCallback(const char *elementId, const char *value) {
     snprintf(id, sizeof(id), "%s_saturday",  prefix); if (strcmp(elementId, id) == 0) { config.grp_timer[i].saturday  = EspStrUtil::stringToBool(value); }
     snprintf(id, sizeof(id), "%s_sunday",    prefix); if (strcmp(elementId, id) == 0) { config.grp_timer[i].sunday    = EspStrUtil::stringToBool(value); }
 
-    char upPrefix[48], downPrefix[48];
+    char upPrefix[48], downPrefix[48], posPrefix[48];
     snprintf(upPrefix,   sizeof(upPrefix),   "%s_up",   prefix);
     snprintf(downPrefix, sizeof(downPrefix), "%s_down", prefix);
     processTimerEventField(elementId, value, upPrefix,   config.grp_timer[i].up);
     processTimerEventField(elementId, value, downPrefix, config.grp_timer[i].down);
+    snprintf(posPrefix, sizeof(posPrefix), "%s_pos", prefix);
+    processTimerEventField(elementId, value, posPrefix,  config.grp_timer[i].pos);
+    snprintf(id, sizeof(id), "%s_pos_target", prefix);
+    if (strcmp(elementId, id) == 0) { config.grp_timer[i].pos_target = (uint8_t)constrain(atoi(value), 0, 100); }
   }
   } // end grp_timer_ check
 
