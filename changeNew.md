@@ -1,28 +1,17 @@
-# v1.22.1
+# v1.22.2
 
 ## what's new
 
-Fixes the crashes reported in [issue #5](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/5).
+### "Check for update" no longer crashes
 
-### ESP32-S2 no longer crashes when the WebUI is open
+Pressing "check for update" caused a panic reset when the GitHub request failed. In the GitHub OTA library the field `tag_name` of a release had no initial value, so after a failed request `freeRelease()` freed a random pointer. The library is now part of the project (`lib/ESP_Git_OTA`) with this fix, and failed requests write their HTTP error to the log.
 
-The ESP32-S2 build used the board definition of a classic ESP32. With it the embedded PSRAM of the S2 was never initialised, and only about 15 KB of internal RAM were left once WiFi and the web server were running. As soon as the WebUI was opened, sending the page data failed with an out-of-memory `abort()` - the ESP restarted in a loop, which also made the setup impossible.
+### Update check works on the ESP32-S2
 
-- The S2 build now uses the `lolin_s2_mini` board definition (ESP32-S2FN4R2 with 2 MB PSRAM). PSRAM is now active and the free internal RAM rose from ~15 KB to ~65 KB.
-- The WebUI log buffer (40 KB) is now allocated at startup and placed in PSRAM if available.
-- Timer fields are sent to the WebUI in small packets, one channel or group at a time, and only when enough memory is free.
-- On the S2 the log is now also printed on the USB port ("USB CDC On Boot"), and firmware uploads no longer need the BOOT button.
-
-> [!NOTE]
-> After this update the ESP32-S2 shows up as a different COM port, because its USB ID changed.
-
-> [!IMPORTANT]
-> The default CC1101 pins (GDO2 = GPIO22, MOSI = GPIO23) do not exist on the ESP32-S2. Set pins that exist on your board in the GPIO settings.
+The Arduino core places all TLS buffers of mbedTLS in internal RAM. The ESP32-S2 rarely has a free block of ~16 KB there, so the HTTPS request to GitHub failed with "connection refused". On boards with PSRAM, buffers of 4 KB and more now go to PSRAM.
 
 ## changelog
 
-- [FIX] ESP32-S2: crash loop (out of memory) as soon as the WebUI is opened - PSRAM is now used (#5)
-- [FIX] Timer: "Go to position" defaults to 50 % instead of 0 % for new timers
-- [CHANGE] ESP32-S2 build uses the `lolin_s2_mini` board definition with USB CDC on boot
-- [CHANGE] WebUI log buffer is allocated in PSRAM if available
-- [CHANGE] Timer fields are sent to the WebUI one channel/group per packet
+- [FIX] Panic reset on "check for update" when the GitHub request fails (uninitialised `tag_name` in ESP_Git_OTA)
+- [FIX] ESP32-S2: GitHub update check failed with "connection refused" - mbedTLS uses PSRAM for large buffers
+- [CHANGE] ESP_Git_OTA is now included in `lib/` instead of being downloaded at build time

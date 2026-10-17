@@ -1,7 +1,9 @@
 #include <Arduino.h>
 #include <basics.h>
 #include <github.h>
+#include <esp_heap_caps.h>
 #include <message.h>
+#include <mbedtls/platform.h>
 
 #define GITHUB_OWNER "Banabas"
 #define GITHUB_REPO "ESP32-Jarolift-PositionController"
@@ -9,6 +11,36 @@
 static const char *TAG = "GITHUB"; // LOG TAG
 
 GithubReleaseOTA ota(GITHUB_OWNER, GITHUB_REPO);
+
+/**
+ * *******************************************************************
+ * @brief   let mbedTLS use PSRAM for its large buffers
+ * @details The Arduino core forces mbedTLS into internal RAM. The TLS
+ *          record buffer needs ~16 KB in one block, which the internal
+ *          RAM of the ESP32-S2 usually can't provide - the GitHub
+ *          request then fails with "connection refused".
+ * *******************************************************************/
+static void *tlsCalloc(size_t n, size_t size) {
+  void *p = nullptr;
+  if (n * size >= 4096) {
+    p = heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  }
+  if (p == nullptr) {
+    p = heap_caps_calloc(n, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  }
+  return p;
+}
+
+static void tlsFree(void *p) { heap_caps_free(p); }
+
+static void tlsUsePsram() {
+  static bool done = false;
+  if (!done && psramFound()) {
+    mbedtls_platform_set_calloc_free(tlsCalloc, tlsFree);
+    ESP_LOGI(TAG, "mbedTLS buffers moved to PSRAM");
+  }
+  done = true;
+}
 
 /**
  * *******************************************************************
@@ -57,6 +89,7 @@ bool ghGetLatestRelease(GithubRelease *release, GithubReleaseInfo *info, const c
   }
 
   // Get the latest release from GitHub
+  tlsUsePsram();
   *release = ota.getLatestRelease();
 
   // check if the release is valid
@@ -90,6 +123,7 @@ bool ghGetLatestRelease(GithubRelease *release, GithubReleaseInfo *info, const c
  * @return  0 if successful, else error code
  * *******************************************************************/
 int ghStartOtaUpdate(GithubRelease release, const char *asset) {
+  tlsUsePsram();
   int result = ota.flashFirmware(release, asset);
 
   if (result == 0) {
@@ -107,4 +141,7 @@ int ghStartOtaUpdate(GithubRelease release, const char *asset) {
  * @param   release
  * @return  none
  * *******************************************************************/
-void ghFreeRelease(GithubRelease &release) { ota.freeRelease(release); }
+void ghFreeRelease(GithubRelease &release) {
+  ota.freeRelease(release);
+  release = GithubRelease(); // drop the dangling pointers so a second free is harmless
+}

@@ -1,0 +1,28 @@
+{
+    "name": "ESP_Git_OTA",
+    "version": "0.0.2",
+    "description": "Over The Air update library for ESP32 that uses GitHub releases",
+    "keywords": "OTA, Github, ESP32",
+    "repository":
+    {
+        "type": "git",
+        "url": "https://github.com/Hsun1031/ESP_Git_OTA.git"
+    },
+    "authors":
+    [
+        {
+            "name": "Hsun",
+            "email": "hsun1031@outlook.com",
+            "url": "https://github.com/Hsun1031"
+        }
+    ],
+    "license": "MIT",
+    "dependencies": [
+        {
+            "name": "ArduinoJson",
+            "version": "^7.1.0"
+        }
+    ],
+    "frameworks": "Arduino",
+    "platforms": "espressif32"
+}
