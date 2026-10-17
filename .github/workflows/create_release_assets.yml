@@ -14,10 +14,13 @@ on:
 jobs:
   create_release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload the assets
 
     steps:
+      # plain git instead of actions/checkout - the repo only allows actions owned by Banabas
       - name: Checkout code
-        uses: actions/checkout@v4
+        run: git clone --depth 1 --branch "${{ github.ref_name }}" "https://github.com/${{ github.repository }}.git" .
 
       - name: Extract version from header file
         id: extract_version
