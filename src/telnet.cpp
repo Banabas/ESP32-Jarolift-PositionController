@@ -407,6 +407,7 @@ void cmdHelp(char param[MAX_PAR][MAX_CHAR]) {
  * @return  none
  * *******************************************************************/
 void readLogger() {
+  if (logData.buffer == nullptr) return;
   int line = 0;
   while (line < MAX_LOG_LINES) {
     int lineIndex;

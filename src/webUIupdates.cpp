@@ -22,6 +22,7 @@ void updateSystemInfoElements();
 static muTimer refreshTimer1 = muTimer();   // timer to refresh other values
 static muTimer refreshTimer2 = muTimer();   // timer to refresh other values
 static muTimer otaProgessTimer = muTimer(); // timer to refresh other values
+static muTimer timerSendTimer = muTimer();  // paces the timer field packets
 
 static char tmpMessage[300] = {'\0'};
 static bool refreshRequest = false;
@@ -183,53 +184,49 @@ static void sendTimerEventFields(JsonDocument &doc, const char *prefix, const s_
   snprintf(id, sizeof(id), "%s_we_horizon_value", prefix); webUI.addJson(doc, id, (int)ev.weekend_horizon_value);
 }
 
-void updateTimerElements() {
-  JsonDocument timerDoc;
+// Timer fields are sent one channel/group per packet, spread over several
+// loop cycles. Queuing all of them at once (~50 KB) exhausts the heap of the
+// ESP32-S2 and makes AsyncWebSocket::makeBuffer() abort.
+static int8_t timerSendIdx = -1; // -1 = idle, 0..15 = channel, 16..21 = group
+
+static void addChannelTimerFields(JsonDocument &doc, const char *base, int i, const s_channel_timer &t) {
   char id[48]; char prefix[48];
+  snprintf(id, sizeof(id), "%s_%d_monday", base, i);    webUI.addJson(doc, id, t.monday);
+  snprintf(id, sizeof(id), "%s_%d_tuesday", base, i);   webUI.addJson(doc, id, t.tuesday);
+  snprintf(id, sizeof(id), "%s_%d_wednesday", base, i); webUI.addJson(doc, id, t.wednesday);
+  snprintf(id, sizeof(id), "%s_%d_thursday", base, i);  webUI.addJson(doc, id, t.thursday);
+  snprintf(id, sizeof(id), "%s_%d_friday", base, i);    webUI.addJson(doc, id, t.friday);
+  snprintf(id, sizeof(id), "%s_%d_saturday", base, i);  webUI.addJson(doc, id, t.saturday);
+  snprintf(id, sizeof(id), "%s_%d_sunday", base, i);    webUI.addJson(doc, id, t.sunday);
+  snprintf(prefix, sizeof(prefix), "%s_%d_up", base, i);
+  sendTimerEventFields(doc, prefix, t.up);
+  snprintf(prefix, sizeof(prefix), "%s_%d_down", base, i);
+  sendTimerEventFields(doc, prefix, t.down);
+  snprintf(prefix, sizeof(prefix), "%s_%d_pos", base, i);
+  sendTimerEventFields(doc, prefix, t.pos);
+  snprintf(id, sizeof(id), "%s_%d_pos_target", base, i); webUI.addJson(doc, id, (int)t.pos_target);
+}
 
-  // Channel timers - in 8 Paketen je 2 Kanaele senden
-  for (int batch = 0; batch < 8; batch++) {
-    webUI.initJsonBuffer(timerDoc);
-    for (int i = batch*2; i < batch*2+2 && i < 16; i++) {
-      snprintf(id, sizeof(id), "ch_timer_%d_monday", i);    webUI.addJson(timerDoc, id, config.ch_timer[i].monday);
-      snprintf(id, sizeof(id), "ch_timer_%d_tuesday", i);   webUI.addJson(timerDoc, id, config.ch_timer[i].tuesday);
-      snprintf(id, sizeof(id), "ch_timer_%d_wednesday", i); webUI.addJson(timerDoc, id, config.ch_timer[i].wednesday);
-      snprintf(id, sizeof(id), "ch_timer_%d_thursday", i);  webUI.addJson(timerDoc, id, config.ch_timer[i].thursday);
-      snprintf(id, sizeof(id), "ch_timer_%d_friday", i);    webUI.addJson(timerDoc, id, config.ch_timer[i].friday);
-      snprintf(id, sizeof(id), "ch_timer_%d_saturday", i);  webUI.addJson(timerDoc, id, config.ch_timer[i].saturday);
-      snprintf(id, sizeof(id), "ch_timer_%d_sunday", i);    webUI.addJson(timerDoc, id, config.ch_timer[i].sunday);
-      snprintf(prefix, sizeof(prefix), "ch_timer_%d_up", i);
-      sendTimerEventFields(timerDoc, prefix, config.ch_timer[i].up);
-      snprintf(prefix, sizeof(prefix), "ch_timer_%d_down", i);
-      sendTimerEventFields(timerDoc, prefix, config.ch_timer[i].down);
-      snprintf(prefix, sizeof(prefix), "ch_timer_%d_pos", i);
-      sendTimerEventFields(timerDoc, prefix, config.ch_timer[i].pos);
-      snprintf(id, sizeof(id), "ch_timer_%d_pos_target", i); webUI.addJson(timerDoc, id, (int)config.ch_timer[i].pos_target);
-    }
-    webUI.wsUpdateWebJSON(timerDoc);
-  }
+void updateTimerElements() { timerSendIdx = 0; }
 
-  // Group timers - in 2 Paketen je 3 Gruppen senden
-  for (int batch = 0; batch < 2; batch++) {
+static void updateTimerElementsCyclic() {
+  if (timerSendIdx < 0) return;
+  if (ESP.getMaxAllocHeap() < 16384) return; // wait until queued packets are sent
+
+  JsonDocument timerDoc;
   webUI.initJsonBuffer(timerDoc);
-  for (int i = batch*3; i < batch*3+3 && i < 6; i++) {
-    snprintf(id, sizeof(id), "grp_timer_%d_monday", i);    webUI.addJson(timerDoc, id, config.grp_timer[i].monday);
-    snprintf(id, sizeof(id), "grp_timer_%d_tuesday", i);   webUI.addJson(timerDoc, id, config.grp_timer[i].tuesday);
-    snprintf(id, sizeof(id), "grp_timer_%d_wednesday", i); webUI.addJson(timerDoc, id, config.grp_timer[i].wednesday);
-    snprintf(id, sizeof(id), "grp_timer_%d_thursday", i);  webUI.addJson(timerDoc, id, config.grp_timer[i].thursday);
-    snprintf(id, sizeof(id), "grp_timer_%d_friday", i);    webUI.addJson(timerDoc, id, config.grp_timer[i].friday);
-    snprintf(id, sizeof(id), "grp_timer_%d_saturday", i);  webUI.addJson(timerDoc, id, config.grp_timer[i].saturday);
-    snprintf(id, sizeof(id), "grp_timer_%d_sunday", i);    webUI.addJson(timerDoc, id, config.grp_timer[i].sunday);
-    snprintf(prefix, sizeof(prefix), "grp_timer_%d_up", i);
-    sendTimerEventFields(timerDoc, prefix, config.grp_timer[i].up);
-    snprintf(prefix, sizeof(prefix), "grp_timer_%d_down", i);
-    sendTimerEventFields(timerDoc, prefix, config.grp_timer[i].down);
-    snprintf(prefix, sizeof(prefix), "grp_timer_%d_pos", i);
-    sendTimerEventFields(timerDoc, prefix, config.grp_timer[i].pos);
-    snprintf(id, sizeof(id), "grp_timer_%d_pos_target", i); webUI.addJson(timerDoc, id, (int)config.grp_timer[i].pos_target);
+  if (timerSendIdx < 16) {
+    addChannelTimerFields(timerDoc, "ch_timer", timerSendIdx, config.ch_timer[timerSendIdx]);
+  } else {
+    addChannelTimerFields(timerDoc, "grp_timer", timerSendIdx - 16, config.grp_timer[timerSendIdx - 16]);
+  }
+  timerSendIdx++;
+  if (timerSendIdx >= 22) {
+    // tells the timer page that all fields are there
+    webUI.addJson(timerDoc, "timer_data_done", (int)(millis() & 0x7FFFFFFF));
+    timerSendIdx = -1;
   }
   webUI.wsUpdateWebJSON(timerDoc);
-  }
 }
 
 void updateSystemInfoElementsStatic() {
@@ -371,6 +368,7 @@ void webReadLogBuffer() {
  * @return  none
  * *******************************************************************/
 void webReadLogBufferCyclic() {
+  if (logData.buffer == nullptr) return;
 
   jsonLog.clear();
   jsonLog["type"] = "logger";
@@ -543,8 +541,12 @@ void webUIupdates() {
   if (refreshTimer1.cycleTrigger(WEBUI_FAST_REFRESH_TIME_MS) && refreshRequest && !ota.isActive()) {
 
     updateSystemInfoElementsStatic(); // update static informations
-    updateTimerElements();              // update timer fields (separate packets) (≈ 200 Bytes)
+    updateTimerElements();              // start sending timer fields (one packet per cycle)
     refreshRequest = false;
+  }
+
+  if (timerSendTimer.cycleTrigger(50) && !ota.isActive()) {
+    updateTimerElementsCyclic();
   }
 
   // CYCLIC: update SINGLE elemets every x seconds - do this step by step not to stress the connection

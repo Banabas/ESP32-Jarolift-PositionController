@@ -8,7 +8,7 @@
 
 struct s_logdata {
   int lastLine;
-  char buffer[MAX_LOG_LINES][MAX_LOG_ENTRY];
+  char (*buffer)[MAX_LOG_ENTRY]; // MAX_LOG_LINES entries, allocated in messageSetup() (PSRAM if available)
 };
 
 extern s_logdata logData;

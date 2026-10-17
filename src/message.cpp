@@ -157,6 +157,10 @@ int custom_vprintf(const char *format, va_list args) {
   // release copy of va_list
   va_end(args_copy);
 
+#if ARDUINO_USB_CDC_ON_BOOT
+  // vprintf() only reaches UART0 - mirror the log to the USB port (e.g. ESP32-S2)
+  Serial.print(raw_message);
+#endif
   return vprintf(format, args);
 }
 
@@ -169,6 +173,7 @@ int custom_vprintf(const char *format, va_list args) {
  * *******************************************************************/
 void clearLogBuffer() {
   logData.lastLine = 0;
+  if (logData.buffer == nullptr) return;
   for (int i = 0; i < MAX_LOG_LINES; i++) {
     memset(logData.buffer[i], 0, sizeof(logData.buffer[i]));
   }
@@ -181,7 +186,7 @@ void clearLogBuffer() {
  * @return  none
  * *******************************************************************/
 void addLogBuffer(const char *message) {
-  if (strlen(message) != 0) {
+  if (logData.buffer != nullptr && strlen(message) != 0) {
     snprintf(logData.buffer[logData.lastLine], sizeof(logData.buffer[logData.lastLine]), "[%s]  %s", EspStrUtil::getDateTimeString(), message);
     logData.lastLine = (logData.lastLine + 1) % MAX_LOG_LINES; // update the lastLine index in a circular manner
   }
@@ -198,6 +203,14 @@ void messageSetup() {
   // Enable serial port
   Serial.begin(115200);
   delay(100);
+
+  // The log buffer (~40 KB) is too big for the internal RAM of the ESP32-S2.
+  // Prefer PSRAM, fall back to the internal heap on boards without it.
+  const size_t logBufSize = MAX_LOG_LINES * MAX_LOG_ENTRY;
+  logData.buffer = (char (*)[MAX_LOG_ENTRY])heap_caps_malloc(logBufSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (logData.buffer == nullptr) {
+    logData.buffer = (char (*)[MAX_LOG_ENTRY])malloc(logBufSize);
+  }
 
   setLogLevel(ESP_LOG_INFO);            // inital log level - will be changed after config setup
   esp_log_set_vprintf(&custom_vprintf); // set custom vprintf callback function

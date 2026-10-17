@@ -257,6 +257,8 @@ void configInitValue() {
     strncpy(config.timer[i].min_time_value, "", sizeof(config.timer[i].min_time_value));
     strncpy(config.timer[i].max_time_value, "", sizeof(config.timer[i].max_time_value));
   }
+  for (int i = 0; i < 16; i++) config.ch_timer[i].pos_target = 50;
+  for (int i = 0; i < 6; i++)  config.grp_timer[i].pos_target = 50;
 }
 
 /**

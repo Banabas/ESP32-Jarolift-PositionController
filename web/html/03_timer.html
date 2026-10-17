@@ -44,6 +44,7 @@
       <input type="hidden" id="astro_nautic_set"      value="--:--">
       <input type="hidden" id="astro_astronomic_rise" value="--:--">
       <input type="hidden" id="astro_astronomic_set"  value="--:--">
+      <span id="timer_data_done" hidden></span>
         <h4 data-i18n="timer_shutters"></h4>
         <div class="grid" id="ch_timer_grid"></div>
         <h4 data-i18n="timer_groups" style="margin-top:2rem"></h4>
@@ -396,8 +397,11 @@ function buildTimerOverview() {
 // Direkt ausführen - Script steht am Ende des DOM-Abschnitts
 // Damit existieren die Elemente bevor WebSocket-Daten ankommen
 buildTimerCards();
-// initTimerUI nach Datenempfang (ruft buildTimerOverview intern auf)
+// initTimerUI nach Datenempfang (ruft buildTimerOverview intern auf).
+// Die Timer-Daten kommen in mehreren Paketen; das letzte setzt timer_data_done.
 setTimeout(initTimerUI, 1000);
+new MutationObserver(initTimerUI).observe(document.getElementById('timer_data_done'),
+  {childList:true, characterData:true, subtree:true});
 </script>
 
       </div>
