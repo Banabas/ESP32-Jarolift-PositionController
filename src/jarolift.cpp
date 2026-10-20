@@ -116,9 +116,19 @@ void mqttSendRemote(uint32_t serial, int8_t function, uint16_t channel) {
     if (serial >> 8 == config.jaro.remote_serial[i]) {
       remoteName = config.jaro.remote_name[i];
 
-      // check if this remote is registered for one or more shutter
+      // Only update the shutters that were actually addressed by the remote.
+      // Multi-channel remotes (e.g. TDR16) send the selected channel(s) as a
+      // bitmask - remote channel n maps to shutter n. A single-channel remote
+      // always sends channel 1, so if that does not overlap with the mask,
+      // the remote is assigned to other shutters and the whole mask applies.
+      uint16_t target = config.jaro.remote_mask[i] & channel;
+      if (target == 0 && channel == 0x0001) {
+        target = config.jaro.remote_mask[i];
+      }
+      ESP_LOGD(TAG, "remote mask=0x%04x channel=0x%04x -> target=0x%04x", config.jaro.remote_mask[i], channel, target);
+
       for (int j = 0; j < 16; j++) {
-        if (config.jaro.remote_mask[i] & (1 << j)) {
+        if (target & (1 << j)) {
           // Feed remote-triggered moves into the same time-based position
           // tracker used for our own commands, so a shutter operated
           // manually via remote (e.g. stopped mid-travel, then driven the
