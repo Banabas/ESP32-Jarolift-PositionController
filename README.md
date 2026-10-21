@@ -147,6 +147,7 @@ payload:    50
   - [Filemanager](#filemanager)
   - [Teach-in of roller shutters](#teach-in-of-roller-shutters)
   - [Migration](#migration)
+    - [Serial numbers compared to FHEM](#serial-numbers-compared-to-fhem)
 - [WebUI](#webui)
   - [Channels](#channels)
   - [Groups](#groups)
@@ -337,6 +338,28 @@ Press UP and DOWN simultaneously on the programmed transmitter, then press STOP 
 ## Migration
 
 Migration from [madmartin/Jarolift_MQTT](https://github.com/madmartin/Jarolift_MQTT) is possible. Match the Master Keys, Serial Number and Device Counter from the old setup. See the original project documentation for detailed steps.
+
+### Serial numbers compared to FHEM
+
+Jarolift (KeeLoq) only transmits a **28-bit serial number** (7 hex digits). FHEM and this controller split it differently:
+
+| | transmitted 28-bit serial |
+|---|---|
+| ESP32 | `(serial << 8) \| channel` |
+| FHEM | `(serial << 4) \| channel` |
+
+The same serial therefore appears shifted by one hex digit: **FHEM serial = ESP serial × 0x10**.
+
+| ESP32 | FHEM |
+|---|---|
+| `012340` | `123400` |
+| `056780` | `567800` |
+
+> [!IMPORTANT]
+> Only the last 5 hex digits are used by the ESP, so **the first digit must be `0`**. This applies to the controller's own serial and to remote serials. To use a remote serial decoded by FHEM, divide it by 0x10 (drop the last digit, add a leading `0`).
+
+> [!TIP]
+> Every received telegram is logged, including those from unknown remotes (`received remote signal | name: unknown | serial: ...`). If a remote does not show up there at all, the serial number is not the cause — usually it is out of range. Test close to the ESP.
 
 -----
 

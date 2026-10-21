@@ -147,6 +147,7 @@ Payload:    50
   - [Filemanager](#filemanager)
   - [Anlernen von Rolläden](#anlernen-von-rolläden)
   - [Migration](#migration)
+    - [Seriennummern im Vergleich zu FHEM](#seriennummern-im-vergleich-zu-fhem)
 - [WebUI](#webui)
   - [Kanäle](#kanäle)
   - [Gruppen](#gruppen)
@@ -334,6 +335,28 @@ AUF- und AB-Taste gleichzeitig auf der vorhandenen Fernbedienung drücken, dann 
 ## Migration
 
 Migration von [madmartin/Jarolift_MQTT](https://github.com/madmartin/Jarolift_MQTT) ist möglich. Master Keys, Seriennummer und Device Counter aus der alten Konfiguration übernehmen.
+
+### Seriennummern im Vergleich zu FHEM
+
+Jarolift (KeeLoq) überträgt nur eine **28-Bit-Seriennummer** (7 Hex-Stellen). FHEM und dieser Controller teilen sie unterschiedlich auf:
+
+| | gesendete 28-Bit-Seriennummer |
+|---|---|
+| ESP32 | `(Seriennummer << 8) \| Kanal` |
+| FHEM | `(Seriennummer << 4) \| Kanal` |
+
+Dieselbe Seriennummer erscheint daher um eine Hex-Stelle verschoben: **FHEM-Seriennummer = ESP-Seriennummer × 0x10**.
+
+| ESP32 | FHEM |
+|---|---|
+| `012340` | `123400` |
+| `056780` | `567800` |
+
+> [!IMPORTANT]
+> Beim ESP zählen nur die letzten 5 Hex-Stellen, die **erste Stelle muss `0` sein**. Das gilt für die eigene Seriennummer und für die Seriennummern der Fernbedienungen. Eine Fernbedienungs-Seriennummer aus FHEM also durch 0x10 teilen (letzte Stelle weglassen, vorne eine `0` ergänzen).
+
+> [!TIP]
+> Jedes empfangene Telegramm wird geloggt, auch von unbekannten Fernbedienungen (`received remote signal | name: unknown | serial: ...`). Taucht eine Fernbedienung dort gar nicht auf, liegt das nicht an der Seriennummer, sondern meist an der Reichweite. Zum Test nah an den ESP gehen.
 
 -----
 
