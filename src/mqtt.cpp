@@ -26,6 +26,7 @@ static const char *TAG = "MQTT"; // LOG TAG
 static char lastError[64] = "---";
 static int mqtt_retry = 0;
 static muTimer mqttReconnectTimer;
+static char clientId[80]; // AsyncMqttClient keeps only the pointer
 
 /**
  * *******************************************************************
@@ -188,7 +189,14 @@ void mqttSetup() {
   mqtt_client.onDisconnect(onMqttDisconnect);
   mqtt_client.onMessage(onMqttMessage);
   mqtt_client.setServer(config.mqtt.server, config.mqtt.port);
-  mqtt_client.setClientId(config.wifi.hostname);
+  // The broker allows only one connection per client ID. Several controllers
+  // with the same hostname would kick each other out (TCP DISCONNECTED), so
+  // the last 3 bytes of the MAC address are appended to make the ID unique.
+  uint64_t mac = ESP.getEfuseMac();
+  snprintf(clientId, sizeof(clientId), "%s-%02X%02X%02X", config.wifi.hostname, (uint8_t)(mac >> 24),
+           (uint8_t)(mac >> 32), (uint8_t)(mac >> 40));
+  mqtt_client.setClientId(clientId);
+  ESP_LOGI(TAG, "MQTT client ID: %s", clientId);
   mqtt_client.setCredentials(config.mqtt.user, config.mqtt.password);
   mqtt_client.setWill(addTopic("/status"), 0, true, "offline");
   mqtt_client.setKeepAlive(10);
