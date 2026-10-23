@@ -477,6 +477,18 @@ payload:    {0 ... 100}
             100 = fully open
 ```
 
+```text
+Status:     state
+topic:      ../status/shutter/1/state ... status/shutter/16/state
+payload:    {opening, closing, open, closed, stopped}
+            opening / closing = shutter is moving (calibrated channels only)
+            closed  = position <= 25%
+            stopped = position between 26% and 99%
+            open    = position 100%
+```
+
+While moving, the position topic keeps the last position. The new position is sent once the target or end position is reached.
+
 > [!IMPORTANT]
 > With position control active, the status reflects the **estimated position** based on calibrated travel time — not feedback from the motor itself. If the shutter is operated via the original remote control, the position estimate will drift until the shutter is moved to a known end position (0% or 100%) again.
 

@@ -29,6 +29,7 @@
 #include <jarolift.h>
 
 void mqttSendPosition(uint8_t channel, uint8_t position);  // defined in jarolift.cpp
+void mqttSendAllPositions();                               // defined in jarolift.cpp
 
 void     shutterPosInit();
 void     shutterPosUpdate(void (*stopCb)(JaroCmdType, uint8_t));  // stopCb unused but kept for API compat

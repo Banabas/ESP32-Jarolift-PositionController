@@ -462,6 +462,18 @@ Payload:    {0 ... 100}
             100 = vollständig offen
 ```
 
+```text
+Status:     Zustand
+Topic:      ../status/shutter/1/state ... status/shutter/16/state
+Payload:    {opening, closing, open, closed, stopped}
+            opening / closing = Rollladen fährt (nur bei kalibrierten Kanälen)
+            closed  = Position <= 25 %
+            stopped = Position zwischen 26 % und 99 %
+            open    = Position 100 %
+```
+
+Während der Fahrt bleibt im Positions-Topic die letzte Position stehen. Die neue Position wird gesendet, sobald Ziel- oder Endposition erreicht ist.
+
 > [!IMPORTANT]
 > Mit aktiver Positionssteuerung gibt der Status die **geschätzte Position** auf Basis der kalibrierten Fahrzeit an – keine Rückmeldung vom Motor selbst. Wird der Rollladen über die Original-Fernbedienung bedient, driftet die Positionsschätzung, bis der Rollladen wieder eine bekannte Endposition (0% oder 100%) anfährt.
 

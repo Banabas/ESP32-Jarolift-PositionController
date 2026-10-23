@@ -148,19 +148,21 @@ void mqttHaConfig(statType statType, const char *name, const char *deviceClass, 
       // so no inversion is needed in either direction.
       //
       // HA state logic:
-      //   stat_t  + val_tpl → "open" / "closed" / "stopped"
+      //   stat_t  → status/shutter/N/state: "opening" / "closing" while moving,
+      //             afterwards "open" / "closed" / "stopped" (see mqttSendPosition)
       //   pos_t   + pos_open/pos_clsd → position slider in HA (0–100, 0=closed in HA)
-      //
-      // Threshold: position <= 25 → HA shows "closed", >= 100 → "open"
 
       sprintf(cmdTopic, "%s/cmd/shutter/%i", statePrefix, devCfg.num1);
       doc["cmd_t"] = cmdTopic;
 
-      // State: derive open/closed from position with 25% threshold
-      doc["stat_t"]      = stateTopic;
-      doc["val_tpl"]     = "{% if value | int <= 25 %}closed{% elif value | int < 100 %}stopped{% else %}open{% endif %}";
-      doc["state_open"]  = "open";
-      doc["state_closed"] = "closed";
+      char stateTopicBuf[256];
+      sprintf(stateTopicBuf, "%s/status/shutter/%i/state", statePrefix, devCfg.num1);
+      doc["stat_t"]        = stateTopicBuf;
+      doc.remove("val_tpl");
+      doc["state_open"]    = "open";
+      doc["state_opening"] = "opening";
+      doc["state_closed"]  = "closed";
+      doc["state_closing"] = "closing";
       doc["state_stopped"] = "stopped";
 
       // Position feedback (for position slider in HA)

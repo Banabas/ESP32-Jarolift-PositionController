@@ -255,6 +255,8 @@ void mqttCyclic() {
     if (config.mqtt.ha_enable) {
       mqttDiscoverySetup(false);
     }
+    // publish position and state once, so the state topic exists after an update
+    mqttSendAllPositions();
   }
 }
 

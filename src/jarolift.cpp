@@ -31,7 +31,21 @@ JaroliftController jarolift;
 
 /**
  * *******************************************************************
- * @brief   send expected position via mqtt
+ * @brief   send shutter state (opening, closing, open, closed, stopped) via mqtt
+ * @param   channel, state
+ * @return  none
+ * *******************************************************************/
+static void mqttSendState(uint8_t channel, const char *state) {
+  char topic[64];
+  if (mqttIsConnected()) {
+    snprintf(topic, sizeof(topic), "%s%d/state", addTopic("/status/shutter/"), channel + 1);
+    mqttPublish(topic, state, true);
+  }
+}
+
+/**
+ * *******************************************************************
+ * @brief   send expected position and the resulting state via mqtt
  * @param   channel, position
  * @return  none
  * *******************************************************************/
@@ -48,21 +62,66 @@ void mqttSendPosition(uint8_t channel, uint8_t position) {
     snprintf(topic, sizeof(topic), "%s%d", addTopic("/status/shutter/"), channel + 1);
     mqttPublish(topic, pos, true);
   }
+  // same thresholds as the former Home Assistant value template
+  mqttSendState(channel, position <= 25 ? "closed" : (position < 100 ? "stopped" : "open"));
 }
 
 /**
  * *******************************************************************
- * @brief   send expected position via mqtt
- * @param   channel, position
+ * @brief   send position and state of all enabled shutters via mqtt
+ * @param   none
  * @return  none
  * *******************************************************************/
-void mqttSendPositionGroup(uint16_t group_mask, uint8_t position) {
-
-  // check all 16 channels
+void mqttSendAllPositions() {
   for (uint8_t c = 0; c < 16; c++) {
-    // check if channel is in group
+    if (config.jaro.ch_enable[c]) {
+      mqttSendPosition(c, shutterPosGet(c));
+    }
+  }
+}
+
+/** true if the position of this channel is tracked by travel time */
+static bool isTracked(uint8_t channel) {
+  return config.jaro.ch_enable[channel] && config.jaro.ch_travel_time[channel] != 0;
+}
+
+/**
+ * *******************************************************************
+ * @brief   shutter UP / DOWN / STOP was sent - update position tracking and mqtt
+ * @param   channel
+ * @return  none
+ * *******************************************************************/
+static void shutterMoveUp(uint8_t channel) {
+  shutterPosNotifyUp(channel);
+  if (isTracked(channel)) {
+    // the final position is sent when the end-stop or target is reached
+    mqttSendState(channel, "opening");
+  } else {
+    mqttSendPosition(channel, POS_OPEN);
+  }
+}
+
+static void shutterMoveDown(uint8_t channel) {
+  shutterPosNotifyDown(channel);
+  if (isTracked(channel)) {
+    mqttSendState(channel, "closing");
+  } else {
+    mqttSendPosition(channel, POS_CLOSE);
+  }
+}
+
+static void shutterMoveStop(uint8_t channel) {
+  shutterPosNotifyStop(channel);
+  if (isTracked(channel)) {
+    mqttSendPosition(channel, shutterPosGet(channel));
+  }
+}
+
+/** call fn for every channel in the group mask */
+static void forEachChannel(uint16_t group_mask, void (*fn)(uint8_t)) {
+  for (uint8_t c = 0; c < 16; c++) {
     if (group_mask & (1 << c)) {
-      mqttSendPosition(c, position);
+      fn(c);
     }
   }
 }
@@ -146,29 +205,15 @@ void mqttSendRemote(uint32_t serial, int8_t function, uint16_t channel) {
           // tracker used for our own commands, so a shutter operated
           // manually via remote (e.g. stopped mid-travel, then driven the
           // other way) keeps an accurate estimated position.
-          const bool tracked = config.jaro.ch_enable[j] && config.jaro.ch_travel_time[j] != 0;
           switch (function) {
           case 0x2: // DOWN
-            if (tracked) {
-              shutterPosNotifyDown(j);
-              mqttSendPosition(j, shutterPosGet(j));
-            } else {
-              mqttSendPosition(j, POS_CLOSE);
-            }
+            shutterMoveDown(j);
             break;
           case 0x8: // UP
-            if (tracked) {
-              shutterPosNotifyUp(j);
-              mqttSendPosition(j, shutterPosGet(j));
-            } else {
-              mqttSendPosition(j, POS_OPEN);
-            }
+            shutterMoveUp(j);
             break;
           case 0x4: // STOP
-            if (tracked) {
-              shutterPosNotifyStop(j);
-              mqttSendPosition(j, shutterPosGet(j));
-            }
+            shutterMoveStop(j);
             break;
           case 0x3: // SHADE
             shadePosUpdate(j);
@@ -292,20 +337,17 @@ void processJaroCommands() {
       switch (cmd.single.type) {
       case CMD_UP:
         jarolift.cmdChannel(JaroliftController::CMD_UP, cmd.single.channel);
-        shutterPosNotifyUp(cmd.single.channel);
-        mqttSendPosition(cmd.single.channel, POS_OPEN);
+        shutterMoveUp(cmd.single.channel);
         ESP_LOGI(TAG, "execute cmd: UP - channel: %s", chName(cmd.single.channel));
         break;
       case CMD_DOWN:
         jarolift.cmdChannel(JaroliftController::CMD_DOWN, cmd.single.channel);
-        shutterPosNotifyDown(cmd.single.channel);
-        mqttSendPosition(cmd.single.channel, POS_CLOSE);
+        shutterMoveDown(cmd.single.channel);
         ESP_LOGI(TAG, "execute cmd: DOWN - channel: %s", chName(cmd.single.channel));
         break;
       case CMD_STOP:
         jarolift.cmdChannel(JaroliftController::CMD_STOP, cmd.single.channel);
-        shutterPosNotifyStop(cmd.single.channel);
-        mqttSendPosition(cmd.single.channel, shutterPosGet(cmd.single.channel));
+        shutterMoveStop(cmd.single.channel);
         ESP_LOGI(TAG, "execute cmd: STOP - channel: %s", chName(cmd.single.channel));
         break;
       case CMD_SET_SHADE:
@@ -328,24 +370,21 @@ void processJaroCommands() {
       case CMD_GRP_UP:
         jarolift.cmdGroup(JaroliftController::CMD_UP, cmd.group.group_mask);
         ESP_LOGI(TAG, "execute group cmd: UP - mask: %04X", cmd.group.group_mask);
-        mqttSendPositionGroup(cmd.group.group_mask, POS_OPEN);
+        forEachChannel(cmd.group.group_mask, shutterMoveUp);
         break;
       case CMD_GRP_DOWN:
         jarolift.cmdGroup(JaroliftController::CMD_DOWN, cmd.group.group_mask);
         ESP_LOGI(TAG, "execute group cmd: DOWN - mask: %04X", cmd.group.group_mask);
-        mqttSendPositionGroup(cmd.group.group_mask, POS_CLOSE);
+        forEachChannel(cmd.group.group_mask, shutterMoveDown);
         break;
       case CMD_GRP_STOP:
         jarolift.cmdGroup(JaroliftController::CMD_STOP, cmd.group.group_mask);
         ESP_LOGI(TAG, "execute group cmd: STOP - mask: %04X", cmd.group.group_mask);
+        forEachChannel(cmd.group.group_mask, shutterMoveStop);
         break;
       case CMD_GRP_SHADE:
         jarolift.cmdGroup(JaroliftController::CMD_SHADE, cmd.group.group_mask);
-        for (uint8_t c = 0; c < 16; c++) {
-          if (cmd.group.group_mask & (1 << c)) {
-            shadePosUpdate(c);
-          }
-        }
+        forEachChannel(cmd.group.group_mask, shadePosUpdate);
         ESP_LOGI(TAG, "execute group cmd: SHADE - mask: %04X", cmd.group.group_mask);
         break;
       }

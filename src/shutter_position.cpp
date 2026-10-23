@@ -290,11 +290,16 @@ void shutterPosNotifyDown(uint8_t ch) {
 
 void shutterPosNotifyStop(uint8_t ch) {
     if (ch >= CH_COUNT) return;
+    // shutterPosSetTarget() queues STOP before the move in the other direction
+    // and has already marked the channel as stopped - keep its pending target
+    const bool keepPending = !s[ch].moving && s[ch].pendingMove;
     if (s[ch].moving) s[ch].pos = calcPos(ch);
     s[ch].moving      = false;
-    s[ch].target      = -1;
     s[ch].stopAtMs    = 0;
-    s[ch].pendingMove = false;
+    if (!keepPending) {
+        s[ch].target      = -1;
+        s[ch].pendingMove = false;
+    }
     config.jaro.ch_last_pos[ch] = s[ch].pos;
     ESP_LOGI(TAG, "%s: stopped at %d%%", chName(ch), s[ch].pos);
 }
