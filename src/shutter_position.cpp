@@ -303,6 +303,9 @@ void shutterPosNotifyStop(uint8_t ch) {
 
 void   shutterPosForceOpen(uint8_t ch)  { if (ch < CH_COUNT) forcePos(ch, 100); }
 void   shutterPosForceClose(uint8_t ch) { if (ch < CH_COUNT) forcePos(ch, 0);   }
+void   shutterPosForce(uint8_t ch, int8_t pos) {
+    if (ch < CH_COUNT) forcePos(ch, static_cast<int8_t>(clamp32(pos, 0, 100)));
+}
 int8_t shutterPosGet(uint8_t ch)        { return ch < CH_COUNT ? calcPos(ch) : -1; }
 bool   shutterIsMoving(uint8_t ch)      { return ch < CH_COUNT && s[ch].moving; }
 

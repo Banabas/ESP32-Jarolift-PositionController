@@ -257,6 +257,7 @@ void configInitValue() {
     strncpy(config.timer[i].min_time_value, "", sizeof(config.timer[i].min_time_value));
     strncpy(config.timer[i].max_time_value, "", sizeof(config.timer[i].max_time_value));
   }
+  for (int i = 0; i < 16; i++) config.jaro.ch_shade_pos[i] = 10;
   for (int i = 0; i < 16; i++) config.ch_timer[i].pos_target = 50;
   for (int i = 0; i < 6; i++)  config.grp_timer[i].pos_target = 50;
 }
@@ -453,6 +454,11 @@ void configSaveToFile() {
   JsonArray ch_last_pos = doc["jaro"]["ch_last_pos"].to<JsonArray>();
   for (int i = 0; i < 16; i++) {
     ch_last_pos.add(config.jaro.ch_last_pos[i]);
+  }
+
+  JsonArray ch_shade_pos = doc["jaro"]["ch_shade_pos"].to<JsonArray>();
+  for (int i = 0; i < 16; i++) {
+    ch_shade_pos.add(config.jaro.ch_shade_pos[i]);
   }
 
   JsonArray grp_enable = doc["jaro"]["grp_enable"].to<JsonArray>();
@@ -682,6 +688,11 @@ void configLoadFromFile() {
     JsonArray ch_last_pos_arr = doc["jaro"]["ch_last_pos"].as<JsonArray>();
     for (int i = 0; i < 16; i++) {
       config.jaro.ch_last_pos[i] = ch_last_pos_arr[i] | 0;
+    }
+
+    JsonArray ch_shade_pos_arr = doc["jaro"]["ch_shade_pos"].as<JsonArray>();
+    for (int i = 0; i < 16; i++) {
+      config.jaro.ch_shade_pos[i] = ch_shade_pos_arr[i] | 10;
     }
     JsonArray grp_enable = doc["jaro"]["grp_enable"].as<JsonArray>();
     for (int i = 0; i < 6; i++) {

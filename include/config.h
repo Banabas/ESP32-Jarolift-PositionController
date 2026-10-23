@@ -4,7 +4,7 @@
 /*-------------------------------------------------------------------------------
 General Configuration
 --------------------------------------------------------------------------------*/
-#define VERSION "v1.22.3" // internal program version
+#define VERSION "v1.22.4" // internal program version
 
 #define WIFI_RECONNECT 30000 // Delay between wifi reconnection tries
 #define MQTT_RECONNECT 10000 // Delay between mqtt reconnection tries
@@ -18,6 +18,7 @@ struct s_cfg_jaro {
   uint32_t ch_travel_time[16];    // calibrated DOWN travel time in ms (0 = uncalibrated)
   uint32_t ch_travel_time_up[16]; // calibrated UP travel time in ms (0 = use DOWN * UP_FACTOR)
   int8_t ch_last_pos[16];       // zuletzt bekannte Position 0-100
+  int8_t ch_shade_pos[16];      // position reported after SHADE 0-100
   bool ch_enable[16];
   char grp_name[6][64]{"\0"};
   bool grp_enable[6];

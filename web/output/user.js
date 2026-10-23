@@ -258,6 +258,10 @@ const user_translations = {
     de: "Laufzeit AUF (s)",
     en: "Travel time UP (s)",
   },
+  shade_pos: {
+    de: "Schattenposition (%)",
+    en: "Shade position (%)",
+  },
 
   astro_real: {
     de: "REAL (Sonnenauf/-untergang)",

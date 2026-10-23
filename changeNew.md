@@ -1,13 +1,16 @@
-# v1.22.3
+# v1.22.4
 
 ## what's new
 
-Fixes [issue #6](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/6).
+Fixes [issue #10](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/10).
 
-### Remote control only moves the position of the selected shutter
+### Configurable shade position
 
-When a remote was registered for several shutters (e.g. a TDR16 for 7 shutters), every button press updated the position of all shutters in its mask, no matter which channel was selected on the remote. Now only the shutters whose channel was actually sent are updated - remote channel n belongs to shutter n. Single-channel remotes that are assigned to other shutters keep updating their whole mask.
+After a SHADE command from the WebUI or Home Assistant, the shutter position was not updated and stayed at 100%. Home Assistant then saw no reason to send OPEN anymore. Groups and remotes reported a fixed 10% but did not update the internal position tracking.
+
+Each channel now has a **shade position (%)** in the settings (default 10%). After SHADE (single channel, group or remote) this position is taken over by the position tracking and reported via MQTT. "Set shade" in the service menu automatically stores the current position as shade position when the channel is calibrated.
 
 ## changelog
 
-- [FIX] Remote commands only update the position of the shutters on the selected remote channel(s)
+- [FIX] SHADE updates the shutter position, so Home Assistant can open the shutter again
+- [FEATURE] configurable shade position per channel

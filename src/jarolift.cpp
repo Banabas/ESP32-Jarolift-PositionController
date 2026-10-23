@@ -12,7 +12,6 @@
 // Position convention: 0% = closed, 100% = open (matches Home Assistant)
 #define POS_OPEN 100
 #define POS_CLOSE 0
-#define POS_SHADE 10
 
 static muTimer cmdTimer = muTimer();
 static muTimer timerTimer = muTimer();
@@ -66,6 +65,20 @@ void mqttSendPositionGroup(uint16_t group_mask, uint8_t position) {
       mqttSendPosition(c, position);
     }
   }
+}
+
+/**
+ * *******************************************************************
+ * @brief   update tracked position after SHADE
+ * @param   channel
+ * @return  none
+ * *******************************************************************/
+static void shadePosUpdate(uint8_t channel) {
+  // The motor drives to its stored shade position and stops by itself,
+  // so we take over the configured shade position. Without this, the
+  // position stays at 100% and Home Assistant would not send OPEN anymore.
+  shutterPosForce(channel, config.jaro.ch_shade_pos[channel]);
+  mqttSendPosition(channel, shutterPosGet(channel));
 }
 
 /**
@@ -158,7 +171,7 @@ void mqttSendRemote(uint32_t serial, int8_t function, uint16_t channel) {
             }
             break;
           case 0x3: // SHADE
-            mqttSendPosition(j, POS_SHADE);
+            shadePosUpdate(j);
             break;
           default:
             break;
@@ -297,11 +310,16 @@ void processJaroCommands() {
         break;
       case CMD_SET_SHADE:
         jarolift.cmdChannel(JaroliftController::CMD_SET_SHADE, cmd.single.channel);
-        mqttSendPosition(cmd.single.channel, POS_SHADE);
-        ESP_LOGI(TAG, "execute cmd: SETSHADE - channel: %s", chName(cmd.single.channel));
+        // the motor stores its current position as shade position - remember it as well
+        if (config.jaro.ch_travel_time[cmd.single.channel] != 0) {
+          config.jaro.ch_shade_pos[cmd.single.channel] = shutterPosGet(cmd.single.channel);
+        }
+        ESP_LOGI(TAG, "execute cmd: SETSHADE - channel: %s | shade position: %d%%", chName(cmd.single.channel),
+                 config.jaro.ch_shade_pos[cmd.single.channel]);
         break;
       case CMD_SHADE:
         jarolift.cmdChannel(JaroliftController::CMD_SHADE, cmd.single.channel);
+        shadePosUpdate(cmd.single.channel);
         ESP_LOGI(TAG, "execute cmd: SHADE - channel: %s", chName(cmd.single.channel));
         break;
       }
@@ -323,7 +341,11 @@ void processJaroCommands() {
         break;
       case CMD_GRP_SHADE:
         jarolift.cmdGroup(JaroliftController::CMD_SHADE, cmd.group.group_mask);
-        mqttSendPositionGroup(cmd.group.group_mask, POS_SHADE);
+        for (uint8_t c = 0; c < 16; c++) {
+          if (cmd.group.group_mask & (1 << c)) {
+            shadePosUpdate(c);
+          }
+        }
         ESP_LOGI(TAG, "execute group cmd: SHADE - mask: %04X", cmd.group.group_mask);
         break;
       }

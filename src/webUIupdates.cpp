@@ -306,6 +306,8 @@ void updateSystemInfoElementsStatic() {
     webUI.addJson(jsonDoc, id, config.jaro.ch_travel_time[i] / 1000.0f);
     snprintf(id, sizeof(id), "cfg_jaro_ch_traveltime_up_%d", i);
     webUI.addJson(jsonDoc, id, config.jaro.ch_travel_time_up[i] / 1000.0f);
+    snprintf(id, sizeof(id), "cfg_jaro_ch_shadepos_%d", i);
+    webUI.addJson(jsonDoc, id, (int)config.jaro.ch_shade_pos[i]);
   }
 
   // Remote serial as hex string

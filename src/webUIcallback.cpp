@@ -287,6 +287,13 @@ void webCallback(const char *elementId, const char *value) {
       shutterSetTravelTime(i, config.jaro.ch_travel_time[i], ms);
     }
 
+    // position that is reported after SHADE
+    char shadePosId[40];
+    snprintf(shadePosId, sizeof(shadePosId), "cfg_jaro_ch_shadepos_%d", i);
+    if (strcmp(elementId, shadePosId) == 0) {
+      config.jaro.ch_shade_pos[i] = constrain(atoi(value), 0, 100);
+    }
+
     if (strcmp(elementId, unlearnId) == 0) {
       jaroCmd(CMD_UNLEARN, i);
       ESP_LOGI(TAG, "cmd UNLEARN - channel %i", i + 1);

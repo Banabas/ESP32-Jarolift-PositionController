@@ -377,6 +377,8 @@ The WebUI is responsive and offers both desktop and mobile layouts.
 Each enabled shutter can be controlled with Up / Stop / Down / Shade buttons.  
 With position control calibrated, a **position slider (0–100%)** is also available for each channel.
 
+The motor stops at its stored shade position by itself, so the controller cannot measure it. Enter it per channel under Settings → **Shade position (%)** (default 10%). After a SHADE command this position is reported, so Home Assistant can open the shutter again afterwards. A **Set shade** in the service menu also takes over the current position automatically when the channel is calibrated.
+
 ![webUI_shutter](Doc/webUI_shutter.png)
 
 ## Groups

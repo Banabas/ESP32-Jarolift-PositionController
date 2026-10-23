@@ -374,6 +374,8 @@ Die WebUI ist responsiv und bietet sowohl Desktop- als auch Mobile-Layout.
 Jeder aktivierte Rollladen kann mit Hoch / Stopp / Runter / Schatten bedient werden.  
 Mit kalibrierter Positionssteuerung steht zusätzlich ein **Positionsschieberegler (0–100%)** zur Verfügung.
 
+Die Schattenposition fährt der Motor selbstständig an, der Controller kann sie daher nicht messen. Sie wird pro Kanal unter Einstellungen → **Schattenposition (%)** eingetragen (Standard 10 %). Nach einem SCHATTEN-Befehl wird diese Position gemeldet, sodass Home Assistant den Rollladen danach wieder öffnen kann. Ein **Schatten setzen** im Service-Menü übernimmt bei kalibriertem Kanal außerdem automatisch die aktuelle Position.
+
 ![webUI_shutter](Doc/webUI_shutter.png)
 
 ## Gruppen
