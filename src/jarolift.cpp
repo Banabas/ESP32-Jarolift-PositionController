@@ -257,7 +257,7 @@ void jaroCmd(JaroCmdType type, uint8_t channel) {
     jaroCmdQueue.push({JaroCommand::SINGLE, {.single = {type, channel}}});
     ESP_LOGD(TAG, "add single cmd to buffer: %i, %i", type, channel + 1);
   } else {
-    ESP_LOGE(TAG, "too many commands within too short time");
+    ESP_LOGE(TAG, "too many commands within too short time (queue size: %u)", (unsigned)jaroCmdQueue.size());
   }
 }
 
@@ -266,7 +266,7 @@ void jaroCmd(JaroCmdGrpType type, uint16_t group_mask) {
     jaroCmdQueue.push({JaroCommand::GROUP, {.group = {type, group_mask}}});
     ESP_LOGD(TAG, "add group cmd to buffer: %i, %04X", type, group_mask);
   } else {
-    ESP_LOGE(TAG, "too many commands within too short time");
+    ESP_LOGE(TAG, "too many commands within too short time (queue size: %u)", (unsigned)jaroCmdQueue.size());
   }
 }
 
@@ -275,7 +275,7 @@ void jaroCmd(JaroCmdSrvType type, uint8_t channel) {
     jaroCmdQueue.push({JaroCommand::SERVICE, {.service = {type, channel}}});
     ESP_LOGD(TAG, "add service cmd to buffer: %i, %i", type, channel + 1);
   } else {
-    ESP_LOGE(TAG, "too many commands within too short time");
+    ESP_LOGE(TAG, "too many commands within too short time (queue size: %u)", (unsigned)jaroCmdQueue.size());
   }
 }
 
@@ -432,6 +432,21 @@ void jaroliftCyclic() {
   if (cmdTimer.cycleTrigger(SEND_CYCLE)) {
     processJaroCommands();
   }
+
+  // Queue watchdog: the queue drains one entry per SEND_CYCLE, so it can never
+  // legitimately stay non-empty without shrinking for long. If it does, it is
+  // stuck/corrupted - log it and reset it instead of rejecting every new command.
+  static size_t   wdLastSize = 0;
+  static uint32_t wdSinceMs  = 0;
+  const size_t qSize = jaroCmdQueue.size();
+  if (qSize == 0 || qSize < wdLastSize) {
+    wdSinceMs = millis();
+  } else if (millis() - wdSinceMs > (MAX_CMD + 4) * SEND_CYCLE) {
+    ESP_LOGE(TAG, "command queue stuck (size: %u) - resetting queue", (unsigned)qSize);
+    std::queue<JaroCommand>().swap(jaroCmdQueue);
+    wdSinceMs = millis();
+  }
+  wdLastSize = jaroCmdQueue.size();
 
   // Position tracking: Zielposition prüfen und ggf. stoppen
   static uint32_t lastPosCheck = 0;

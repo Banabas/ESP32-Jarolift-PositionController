@@ -374,6 +374,13 @@ void JaroliftController::handleRadioRxMeasure() {
   if (currentMicros - timeout > 3500) {
     pbWrite_ = 0;
   }
+  // Guard against buffer overrun: continuous RF noise (pulses 300..1000us
+  // without a >3.5ms gap) never resets pbWrite_, which would otherwise write
+  // past lowBuf_/hiBuf_ and corrupt pbWrite_ itself and adjacent globals
+  // (e.g. the command queue). A valid telegram has max. ~75 pulses.
+  if (pbWrite_ >= kPulseBufferSize) {
+    pbWrite_ = 0;
+  }
   if (pinState) { // Übergang zu HIGH
     lineUp = currentMicros;
     unsigned long lowVal = lineUp - lineDown;
