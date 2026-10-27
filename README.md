@@ -85,7 +85,7 @@ If the automatically measured travel times aren't quite accurate, they can be ma
 
 - Each shutter is now published as a **cover entity with a position slider** (0–100%)
 - A separate **Shade button** is added for each shutter
-- State logic: position <= 25% → `closed`, position < 100% → `stopped`, position = 100% → `open`
+- State logic: position 0% → `closed`, position 100% → `open`, in between → `stopped`
 - ESP32 and HA position conventions match (0 = closed, 100 = open) — no inversion needed
 
 ### Position via MQTT
@@ -482,12 +482,12 @@ Status:     state
 topic:      ../status/shutter/1/state ... status/shutter/16/state
 payload:    {opening, closing, open, closed, stopped}
             opening / closing = shutter is moving (calibrated channels only)
-            closed  = position <= 25%
-            stopped = position between 26% and 99%
+            closed  = position 0%
+            stopped = position between 1% and 99%
             open    = position 100%
 ```
 
-While moving, the position topic keeps the last position. The new position is sent once the target or end position is reached.
+While moving, the estimated position is sent about once per second. The final position is sent once the target or end position is reached.
 
 > [!IMPORTANT]
 > With position control active, the status reflects the **estimated position** based on calibrated travel time — not feedback from the motor itself. If the shutter is operated via the original remote control, the position estimate will drift until the shutter is moved to a known end position (0% or 100%) again.

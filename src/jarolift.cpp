@@ -13,7 +13,6 @@
 #define POS_OPEN 100
 #define POS_CLOSE 0
 
-static muTimer cmdTimer = muTimer();
 static muTimer timerTimer = muTimer();
 static const char *TAG = "JARO"; // LOG TAG
 
@@ -45,25 +44,35 @@ static void mqttSendState(uint8_t channel, const char *state) {
 
 /**
  * *******************************************************************
- * @brief   send expected position and the resulting state via mqtt
+ * @brief   send estimated position while moving (state stays opening / closing)
  * @param   channel, position
  * @return  none
  * *******************************************************************/
-void mqttSendPosition(uint8_t channel, uint8_t position) {
+void mqttSendMovingPosition(uint8_t channel, uint8_t position) {
   char topic[64];
   char pos[16];
 
   if (position > 100)
     position = 100;
-  if (position < 0)
-    position = 0;
   if (mqttIsConnected()) {
     itoa(position, pos, 10);
     snprintf(topic, sizeof(topic), "%s%d", addTopic("/status/shutter/"), channel + 1);
     mqttPublish(topic, pos, true);
   }
-  // same thresholds as the former Home Assistant value template
-  mqttSendState(channel, position <= 25 ? "closed" : (position < 100 ? "stopped" : "open"));
+}
+
+/**
+ * *******************************************************************
+ * @brief   send expected position and the resulting state via mqtt
+ * @param   channel, position
+ * @return  none
+ * *******************************************************************/
+void mqttSendPosition(uint8_t channel, uint8_t position) {
+  if (position > 100)
+    position = 100;
+  mqttSendMovingPosition(channel, position);
+  // closed / open only at the end positions, in between the shutter is stopped
+  mqttSendState(channel, position == POS_CLOSE ? "closed" : (position == POS_OPEN ? "open" : "stopped"));
 }
 
 /**
@@ -429,7 +438,10 @@ void processJaroCommands() {
  * *******************************************************************/
 void jaroliftCyclic() {
 
-  if (cmdTimer.cycleTrigger(SEND_CYCLE)) {
+  // send at most one command per SEND_CYCLE, but the first one after a pause right away
+  static uint32_t lastSendMs = 0;
+  if (!jaroCmdQueue.empty() && millis() - lastSendMs >= SEND_CYCLE) {
+    lastSendMs = millis();
     processJaroCommands();
   }
 

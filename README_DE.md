@@ -85,7 +85,7 @@ Falls die automatisch gemessenen Fahrzeiten nicht ganz genau sind, können sie a
 
 - Jeder Rollladen wird als **Cover-Entität mit Positionsschieberegler** (0–100%) veröffentlicht
 - Ein separater **Schatten-Button** wird für jeden Rollladen hinzugefügt
-- Statuslogik: Position <= 25% -> `closed`, Position < 100% -> `stopped`, Position = 100% -> `open`
+- Statuslogik: Position 0% -> `closed`, Position 100% -> `open`, dazwischen -> `stopped`
 - Positionskonvention von ESP32 und HA stimmen überein (0 = geschlossen, 100 = offen) – keine Invertierung nötig
 
 ### Position per MQTT
@@ -467,12 +467,12 @@ Status:     Zustand
 Topic:      ../status/shutter/1/state ... status/shutter/16/state
 Payload:    {opening, closing, open, closed, stopped}
             opening / closing = Rollladen fährt (nur bei kalibrierten Kanälen)
-            closed  = Position <= 25 %
-            stopped = Position zwischen 26 % und 99 %
+            closed  = Position 0 %
+            stopped = Position zwischen 1 % und 99 %
             open    = Position 100 %
 ```
 
-Während der Fahrt bleibt im Positions-Topic die letzte Position stehen. Die neue Position wird gesendet, sobald Ziel- oder Endposition erreicht ist.
+Während der Fahrt wird etwa einmal pro Sekunde die geschätzte Position gesendet. Die endgültige Position wird gesendet, sobald Ziel- oder Endposition erreicht ist.
 
 > [!IMPORTANT]
 > Mit aktiver Positionssteuerung gibt der Status die **geschätzte Position** auf Basis der kalibrierten Fahrzeit an – keine Rückmeldung vom Motor selbst. Wird der Rollladen über die Original-Fernbedienung bedient, driftet die Positionsschätzung, bis der Rollladen wieder eine bekannte Endposition (0% oder 100%) anfährt.

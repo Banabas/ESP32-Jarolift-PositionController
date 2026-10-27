@@ -29,6 +29,7 @@
 #include <jarolift.h>
 
 void mqttSendPosition(uint8_t channel, uint8_t position);  // defined in jarolift.cpp
+void mqttSendMovingPosition(uint8_t channel, uint8_t position); // defined in jarolift.cpp
 void mqttSendAllPositions();                               // defined in jarolift.cpp
 
 void     shutterPosInit();

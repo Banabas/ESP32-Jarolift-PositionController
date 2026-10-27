@@ -149,7 +149,7 @@ void mqttHaConfig(statType statType, const char *name, const char *deviceClass, 
       //
       // HA state logic:
       //   stat_t  → status/shutter/N/state: "opening" / "closing" while moving,
-      //             afterwards "open" / "closed" / "stopped" (see mqttSendPosition)
+      //             afterwards "open" (100) / "closed" (0) / "stopped" (in between)
       //   pos_t   + pos_open/pos_clsd → position slider in HA (0–100, 0=closed in HA)
 
       sprintf(cmdTopic, "%s/cmd/shutter/%i", statePrefix, devCfg.num1);

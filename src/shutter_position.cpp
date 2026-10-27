@@ -35,6 +35,7 @@ static const char *TAG = "POS";
 
 static constexpr float   UP_FACTOR_DEFAULT = 1.2f;
 static constexpr uint8_t CH_COUNT          = 16;
+static constexpr uint32_t POS_PUBLISH_MS   = 1000;  ///< interval for the estimated position while moving
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,7 @@ struct CalibState {
 
 static ShutterState s[CH_COUNT];
 static CalibState   c[CH_COUNT];
+static uint32_t     lastPubMs[CH_COUNT];   ///< last publish of the estimated position while moving
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -123,6 +125,12 @@ void shutterPosUpdate(void (* /*stopCb*/)(JaroCmdType, uint8_t)) {
     for (uint8_t ch = 0; ch < CH_COUNT; ++ch) {
         if (!s[ch].moving) continue;
         if (config.jaro.ch_travel_time[ch] == 0) continue;
+
+        // Estimated position while moving, the state stays opening / closing
+        if (now - lastPubMs[ch] >= POS_PUBLISH_MS) {
+            lastPubMs[ch] = now;
+            mqttSendMovingPosition(ch, static_cast<uint8_t>(calcPos(ch)));
+        }
 
         if (s[ch].stopAtMs == 0) {
             // End-stop move: lock position once full travel time has elapsed
@@ -220,6 +228,7 @@ void shutterPosNotifyUp(uint8_t ch) {
     s[ch].startMs    = millis();
     s[ch].goingDown  = false;
     s[ch].moving     = true;
+    lastPubMs[ch]    = s[ch].startMs;
 
     // Start calibration stopwatch now (queue delay excluded)
     if (c[ch].activeUp && c[ch].startMs == 0) {
@@ -258,6 +267,7 @@ void shutterPosNotifyDown(uint8_t ch) {
     s[ch].startMs    = millis();
     s[ch].goingDown  = true;
     s[ch].moving     = true;
+    lastPubMs[ch]    = s[ch].startMs;
 
     // Start calibration stopwatch now (queue delay excluded)
     if (c[ch].activeDown && c[ch].startMs == 0) {
