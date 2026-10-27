@@ -145,8 +145,27 @@ static void shadePosUpdate(uint8_t channel) {
   // The motor drives to its stored shade position and stops by itself,
   // so we take over the configured shade position. Without this, the
   // position stays at 100% and Home Assistant would not send OPEN anymore.
-  shutterPosForce(channel, config.jaro.ch_shade_pos[channel]);
-  mqttSendPosition(channel, shutterPosGet(channel));
+  // Calibrated channels track the move, the final position is sent when it is reached.
+  if (!isTracked(channel) || !shutterPosShade(channel, config.jaro.ch_shade_pos[channel])) {
+    shutterPosForce(channel, config.jaro.ch_shade_pos[channel]);
+    mqttSendPosition(channel, shutterPosGet(channel));
+  }
+}
+
+/**
+ * *******************************************************************
+ * @brief   send opening / closing before SHADE is transmitted (~0.5s)
+ * @param   channel
+ * @return  none
+ * *******************************************************************/
+static void shadeStateUpdate(uint8_t channel) {
+  if (!isTracked(channel))
+    return;
+  const int8_t pos = shutterPosGet(channel);
+  const int8_t shade = config.jaro.ch_shade_pos[channel];
+  if (pos != shade) {
+    mqttSendState(channel, shade > pos ? "opening" : "closing");
+  }
 }
 
 /**
@@ -225,6 +244,7 @@ void mqttSendRemote(uint32_t serial, int8_t function, uint16_t channel) {
             shutterMoveStop(j);
             break;
           case 0x3: // SHADE
+            shadeStateUpdate(j);
             shadePosUpdate(j);
             break;
           default:
@@ -369,6 +389,7 @@ void processJaroCommands() {
                  config.jaro.ch_shade_pos[cmd.single.channel]);
         break;
       case CMD_SHADE:
+        shadeStateUpdate(cmd.single.channel);
         jarolift.cmdChannel(JaroliftController::CMD_SHADE, cmd.single.channel);
         shadePosUpdate(cmd.single.channel);
         ESP_LOGI(TAG, "execute cmd: SHADE - channel: %s", chName(cmd.single.channel));
@@ -392,6 +413,7 @@ void processJaroCommands() {
         forEachChannel(cmd.group.group_mask, shutterMoveStop);
         break;
       case CMD_GRP_SHADE:
+        forEachChannel(cmd.group.group_mask, shadeStateUpdate);
         jarolift.cmdGroup(JaroliftController::CMD_SHADE, cmd.group.group_mask);
         forEachChannel(cmd.group.group_mask, shadePosUpdate);
         ESP_LOGI(TAG, "execute group cmd: SHADE - mask: %04X", cmd.group.group_mask);

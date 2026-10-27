@@ -48,6 +48,7 @@ struct ShutterState {
     bool     moving;
     bool     goingDown;
     bool     pendingMove; ///< CMD queued, waiting for NotifyDown/Up to start timer
+    bool     selfStop;    ///< motor stops by itself at the target (SHADE) - no RF STOP
 };
 
 struct CalibState {
@@ -104,6 +105,7 @@ static void forcePos(uint8_t ch, int8_t pos) {
     s[ch].target      = -1;
     s[ch].stopAtMs    = 0;
     s[ch].pendingMove = false;
+    s[ch].selfStop    = false;
     config.jaro.ch_last_pos[ch] = pos;
 }
 
@@ -112,7 +114,7 @@ static void forcePos(uint8_t ch, int8_t pos) {
 void shutterPosInit() {
     for (uint8_t i = 0; i < CH_COUNT; ++i) {
         s[i] = { config.jaro.ch_last_pos[i], config.jaro.ch_last_pos[i],
-                 -1, 0, 0, false, false, false };
+                 -1, 0, 0, false, false, false, false };
         c[i] = { false, false, 0 };
     }
     ESP_LOGI(TAG, "position tracking ready (%u channels)", CH_COUNT);
@@ -150,15 +152,11 @@ void shutterPosUpdate(void (* /*stopCb*/)(JaroCmdType, uint8_t)) {
         // Timed stop: fire immediately when wall-clock time is reached
         if (now >= s[ch].stopAtMs) {
             const int8_t fixPos = s[ch].target;
-            jaroStopNow(ch);
-            s[ch].pos         = fixPos;
-            s[ch].moving      = false;
-            s[ch].target      = -1;
-            s[ch].stopAtMs    = 0;
-            s[ch].pendingMove = false;
-            config.jaro.ch_last_pos[ch] = fixPos;
+            const bool   shade  = s[ch].selfStop;
+            if (!shade) jaroStopNow(ch);
+            forcePos(ch, fixPos);
             mqttSendPosition(ch, static_cast<uint8_t>(fixPos));
-            ESP_LOGI(TAG, "%s: stopped at %d%%", chName(ch), fixPos);
+            ESP_LOGI(TAG, "%s: %s at %d%%", chName(ch), shade ? "shade position reached" : "stopped", fixPos);
         }
     }
 }
@@ -196,6 +194,7 @@ bool shutterPosSetTarget(uint8_t ch, int8_t targetPct,
             s[ch].stopAtMs = 0;
         }
         s[ch].pendingMove = false;
+        s[ch].selfStop    = false;
         ESP_LOGI(TAG, "%s: retarget → %d%% (same dir)", chName(ch), targetPct);
         return true;
     }
@@ -228,6 +227,7 @@ void shutterPosNotifyUp(uint8_t ch) {
     s[ch].startMs    = millis();
     s[ch].goingDown  = false;
     s[ch].moving     = true;
+    s[ch].selfStop   = false;
     lastPubMs[ch]    = s[ch].startMs;
 
     // Start calibration stopwatch now (queue delay excluded)
@@ -267,6 +267,7 @@ void shutterPosNotifyDown(uint8_t ch) {
     s[ch].startMs    = millis();
     s[ch].goingDown  = true;
     s[ch].moving     = true;
+    s[ch].selfStop   = false;
     lastPubMs[ch]    = s[ch].startMs;
 
     // Start calibration stopwatch now (queue delay excluded)
@@ -306,12 +307,50 @@ void shutterPosNotifyStop(uint8_t ch) {
     if (s[ch].moving) s[ch].pos = calcPos(ch);
     s[ch].moving      = false;
     s[ch].stopAtMs    = 0;
+    s[ch].selfStop    = false;
     if (!keepPending) {
         s[ch].target      = -1;
         s[ch].pendingMove = false;
     }
     config.jaro.ch_last_pos[ch] = s[ch].pos;
     ESP_LOGI(TAG, "%s: stopped at %d%%", chName(ch), s[ch].pos);
+}
+
+// ─── SHADE ────────────────────────────────────────────────────────────────────
+
+/**
+ * SHADE was sent: the motor drives to its stored shade position and stops by
+ * itself. Track the move like a timed move, but without RF STOP at the end.
+ * Returns false if there is nothing to track (not calibrated or already there).
+ */
+bool shutterPosShade(uint8_t ch, int8_t shadePct) {
+    if (ch >= CH_COUNT || config.jaro.ch_travel_time[ch] == 0) return false;
+    shadePct = static_cast<int8_t>(clamp32(shadePct, 0, 100));
+    const int8_t pos = calcPos(ch);
+    if (pos == shadePct) return false;
+
+    s[ch].pos         = pos;
+    s[ch].posAtStart  = pos;
+    s[ch].startMs     = millis();
+    s[ch].goingDown   = shadePct < pos;
+    s[ch].moving      = true;
+    s[ch].pendingMove = false;
+    s[ch].selfStop    = true;
+    lastPubMs[ch]     = s[ch].startMs;
+
+    if (shadePct == 0 || shadePct == 100) {
+        // end position: locked by the end-stop logic in shutterPosUpdate()
+        s[ch].target   = -1;
+        s[ch].stopAtMs = 0;
+    } else {
+        const uint32_t pctSpan = s[ch].goingDown ? static_cast<uint32_t>(pos - shadePct)
+                                                 : static_cast<uint32_t>(shadePct - pos);
+        s[ch].target   = shadePct;
+        s[ch].stopAtMs = s[ch].startMs + pctSpan * travelTime(ch, s[ch].goingDown) / 100u;
+    }
+    ESP_LOGI(TAG, "%s: SHADE from %d%% → %d%% (%s)", chName(ch), pos, shadePct,
+             s[ch].goingDown ? "DOWN" : "UP");
+    return true;
 }
 
 // ─── Position overrides ───────────────────────────────────────────────────────

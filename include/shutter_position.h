@@ -46,7 +46,8 @@ void     shutterPosNotifyStop(uint8_t ch);
 
 void     shutterPosForceOpen(uint8_t ch);
 void     shutterPosForceClose(uint8_t ch);
-void     shutterPosForce(uint8_t ch, int8_t pos);   ///< e.g. after SHADE: motor stops by itself
+bool     shutterPosShade(uint8_t ch, int8_t shadePct);  ///< SHADE sent: track move, motor stops by itself
+void     shutterPosForce(uint8_t ch, int8_t pos);
 int8_t   shutterPosGet(uint8_t ch);
 bool     shutterIsMoving(uint8_t ch);   ///< true if motor is currently running
 
