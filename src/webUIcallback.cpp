@@ -375,6 +375,10 @@ void webCallback(const char *elementId, const char *value) {
     char msg[64];
     snprintf(msg, sizeof(msg), "Kalibrierung OK! UP: %.1f s", travelMs / 1000.0f);
     webUI.wsShowInfoMsg(msg);
+    // stored travel times, measured from the RF command
+    snprintf(msg, sizeof(msg), "DOWN: %.2f s  |  UP: %.2f s", config.jaro.ch_travel_time[srvShutter] / 1000.0f,
+             config.jaro.ch_travel_time_up[srvShutter] / 1000.0f);
+    webUI.wsUpdateWebText("p04_calib_result", msg, false);
   }
 
   // group 1-6

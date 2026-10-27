@@ -1241,7 +1241,6 @@ new MutationObserver(initTimerUI).observe(document.getElementById('timer_data_do
         (function() {
           var timerDown = null, timerUp = null;
           var startDown = 0, startUp = 0;
-          var elapsedDown = 0;
 
           function show(id, visible) {
             var el = document.getElementById(id);
@@ -1278,11 +1277,9 @@ new MutationObserver(initTimerUI).observe(document.getElementById('timer_data_do
             }
 
             // Step 2 -> 3: DOWN done, start UP run
+            // the measured times are sent by the ESP (measured from the RF command)
             if (id === "p04_calib_finish") {
               clearInterval(timerDown);
-              elapsedDown = Date.now() - startDown;
-              setText("p04_calib_timer",
-                (elapsedDown / 1000).toFixed(1) + " s");
               show("p04_calib_step2", false);
               show("p04_calib_step3", true);
               startUp = Date.now();
@@ -1295,12 +1292,9 @@ new MutationObserver(initTimerUI).observe(document.getElementById('timer_data_do
             // Step 3 -> 4: UP done, show result
             if (id === "p04_calib_finish_up") {
               clearInterval(timerUp);
-              var elapsedUp = Date.now() - startUp;
               show("p04_calib_step3", false);
               show("p04_calib_step4", true);
-              setText("p04_calib_result",
-                "DOWN: " + (elapsedDown/1000).toFixed(2) + " s  |  " +
-                "UP: "   + (elapsedUp  /1000).toFixed(2) + " s");
+              setText("p04_calib_result", "...");
               setTimeout(calibReset, 6000);
             }
           }, true);
