@@ -23,6 +23,8 @@
 ![GitHub watchers](https://img.shields.io/github/watchers/Banabas/ESP32-Jarolift-PositionController?style=social)
 [![GitHub stars](https://img.shields.io/github/stars/Banabas/ESP32-Jarolift-PositionController.svg?style=social&label=Star)](https://github.com/Banabas/ESP32-Jarolift-PositionController/stargazers/)
 
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/bruc3b4nn3r254)
+
 </div>
 
 -----
@@ -541,6 +543,13 @@ telnet 192.168.178.193
 # System
 
 ![webUI_system](Doc/webUI_system.png)
+
+-----
+
+# Support
+
+This project is free. If you like it, I'm happy about a coffee:
+[ko-fi.com/bruc3b4nn3r254](https://ko-fi.com/bruc3b4nn3r254)
 
 -----
 
