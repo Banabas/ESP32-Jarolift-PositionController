@@ -44,26 +44,20 @@ static void tlsUsePsram() {
 
 /**
  * *******************************************************************
- * @brief   check if the asset name contains the chip series
+ * @brief   check if the asset is the OTA image of this build variant
+ * @details Exact match on the end of the name: "..._esp32_ota.bin" must
+ *          not match "..._esp32s2_ota.bin", and "..._esp32s3_ota.bin"
+ *          not "..._esp32s3_16mb_ota.bin".
  * @param   assetName
- * @param   espSeries
- * @return  true if the asset name contains the chip series, else false
+ * @return  true if the asset matches this build, else false
  * *******************************************************************/
-bool isChipSeriesMatch(const char *assetName, const char *espSeries) {
-  if (assetName == NULL || espSeries == NULL)
+static bool isOtaAssetForThisBuild(const char *assetName) {
+  static const char suffix[] = "_" BUILD_ENV "_ota.bin";
+  if (assetName == NULL)
     return false;
-
-  char formattedEspSeries[16];
-  size_t j = 0;
-  for (size_t i = 0; espSeries[i] != '\0' && j < sizeof(formattedEspSeries) - 1; i++) {
-    if (espSeries[i] != '-') { // remove '-' from chip series
-      formattedEspSeries[j++] = tolower((unsigned char)espSeries[i]);
-    }
-  }
-  formattedEspSeries[j] = '\0';
-
-  // check if the asset name contains the chip series anywhere (not just at start)
-  return (strcasestr(assetName, formattedEspSeries) != NULL);
+  const size_t len = strlen(assetName);
+  const size_t sufLen = sizeof(suffix) - 1;
+  return len >= sufLen && strcasecmp(assetName + len - sufLen, suffix) == 0;
 }
 
 /**
@@ -79,10 +73,9 @@ void ghSetProgressCallback(void (*callback)(int)) { ota.setProgressCallback(call
  * @brief   get the latest release from GitHub
  * @param   release
  * @param   info
- * @param   espSeries
  * @return  true if successful, else false
  * *******************************************************************/
-bool ghGetLatestRelease(GithubRelease *release, GithubReleaseInfo *info, const char *espSeries) {
+bool ghGetLatestRelease(GithubRelease *release, GithubReleaseInfo *info) {
 
   if (release == nullptr || info == nullptr) {
     return false;
@@ -101,10 +94,10 @@ bool ghGetLatestRelease(GithubRelease *release, GithubReleaseInfo *info, const c
   snprintf(info->url, sizeof(info->url), "%s", release->html_url);
   ESP_LOGD(TAG, "GitHub latest Release: %s", info->tag);
 
-  // search for the first asset that contains the right "chipSeries" and "ota or UPDATE" in its name
+  // search for the OTA asset of this build variant
   info->assetFound = false;
   for (const auto &asset : release->assets) {
-    if (isChipSeriesMatch(asset.name, espSeries) && strcasestr(asset.name, "ota") != NULL) {
+    if (isOtaAssetForThisBuild(asset.name)) {
       ESP_LOGD(TAG, "GitHub OTA Asset found: %s", asset.name);
       snprintf(info->asset, sizeof(info->asset), "%s", asset.name);
       info->assetFound = true;

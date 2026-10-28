@@ -1,11 +1,16 @@
-# v1.22.7
+# v1.22.8
 
 ## what's new
 
-### Calibration result shows the stored travel times
+Fixes [issue #13](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/13).
 
-At the end of the calibration, the WebUI showed the time of the browser stopwatch, measured from the button click. The ESP measures from the moment the RF command is sent and stores that time, so the result shown could be up to 2 s longer than the stored value (reported in [issue #12](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/12)). The result now shows the travel times stored on the ESP. The running stopwatch during the calibration is only a guide.
+### Update from GitHub picked the wrong image
+
+The update from GitHub ("check for update") searched for the first file containing the chip series. On an ESP32 this also matched the ESP32-S2 image, and the update failed with `mismatch chip ID` and `Firmware update failed: 5`. On an ESP32-S3 with 4 MB flash, the image for 16 MB could be picked. The firmware now searches for the image of exactly its own build variant.
+
+> [!IMPORTANT]
+> On ESP32 and ESP32-S3 (4 MB), the update **to** v1.22.8 can still fail via GitHub, because the old version picks the file. Please install v1.22.8 once via WebUI -> Tools -> OTA Update with the matching `_ota.bin` file. From then on, the update from GitHub works again.
 
 ## changelog
 
-- [FIX] calibration result shows the stored travel times instead of the browser stopwatch
+- [FIX] update from GitHub picks the image of the own build variant (ESP32 got the ESP32-S2 image)

@@ -7,7 +7,7 @@ struct GithubReleaseInfo {
   bool assetFound;
 };
 
-bool ghGetLatestRelease(GithubRelease *release, GithubReleaseInfo *info, const char *espSeries);
+bool ghGetLatestRelease(GithubRelease *release, GithubReleaseInfo *info);
 int ghStartOtaUpdate(GithubRelease release, const char *asset);
 void ghSetProgressCallback(void (*callback)(int));
 void ghFreeRelease(GithubRelease &release);

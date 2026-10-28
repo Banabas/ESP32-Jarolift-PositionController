@@ -446,7 +446,7 @@ void requestGitHubVersion() { startCheckGitHubVersion = true; }
 void processGitHubVersion() {
   if (startCheckGitHubVersion) {
     startCheckGitHubVersion = false;
-    if (ghGetLatestRelease(&ghLatestRelease, &ghReleaseInfo, espInfo.chipSeries)) {
+    if (ghGetLatestRelease(&ghLatestRelease, &ghReleaseInfo)) {
       webUI.wsUpdateWebBusy("p00_dialog_git_version", false);
       webUI.wsUpdateWebText("p00_dialog_git_version", ghReleaseInfo.tag, false);
       webUI.wsUpdateWebHref("p00_dialog_git_version", ghReleaseInfo.url);
