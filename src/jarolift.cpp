@@ -256,7 +256,8 @@ void mqttSendRemote(uint32_t serial, int8_t function, uint16_t channel) {
     }
   }
 
-  ESP_LOGI(TAG, "received remote signal | name: %s | serial: 0x%08lx | cmd: %s | channel: %s", remoteName, serial, fun, chBIN);
+  // name last - a log entry is limited to MAX_LOG_ENTRY, a long name must not cut off the channel
+  ESP_LOGI(TAG, "remote signal | serial: 0x%08lx | cmd: %s | channel: 0x%04x | name: %s", serial, fun, channel, remoteName);
 
   if (mqttIsConnected()) {
     JsonDocument remoteJSON;

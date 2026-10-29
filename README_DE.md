@@ -358,7 +358,7 @@ Dieselbe Seriennummer erscheint daher um eine Hex-Stelle verschoben: **FHEM-Seri
 > Beim ESP zählen nur die letzten 5 Hex-Stellen, die **erste Stelle muss `0` sein**. Das gilt für die eigene Seriennummer und für die Seriennummern der Fernbedienungen. Eine Fernbedienungs-Seriennummer aus FHEM also durch 0x10 teilen (letzte Stelle weglassen, vorne eine `0` ergänzen).
 
 > [!TIP]
-> Jedes empfangene Telegramm wird geloggt, auch von unbekannten Fernbedienungen (`received remote signal | name: unknown | serial: ...`). Taucht eine Fernbedienung dort gar nicht auf, liegt das nicht an der Seriennummer, sondern meist an der Reichweite. Zum Test nah an den ESP gehen.
+> Jedes empfangene Telegramm wird geloggt, auch von unbekannten Fernbedienungen (`remote signal | serial: ... | name: unknown`). Taucht eine Fernbedienung dort gar nicht auf, liegt das nicht an der Seriennummer, sondern meist an der Reichweite. Zum Test nah an den ESP gehen.
 
 -----
 

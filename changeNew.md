@@ -1,16 +1,16 @@
-# v1.22.8
+# v1.22.9
 
 ## what's new
 
-Fixes [issue #13](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/13).
+### Remote commands ignored for the position
 
-### Update from GitHub picked the wrong image
+Commands from a remote or sensor were sometimes ignored by the position tracking, e.g. STOP while the shutter was opening. The position then kept running to the end position, although the shutter had stopped. The receiver started decoding before the telegram was complete and read the channel bits 9-16 as 1, so the channel did not match the configured shutters. Decoding now waits for the complete telegram.
 
-The update from GitHub ("check for update") searched for the first file containing the chip series. On an ESP32 this also matched the ESP32-S2 image, and the update failed with `mismatch chip ID` and `Firmware update failed: 5`. On an ESP32-S3 with 4 MB flash, the image for 16 MB could be picked. The firmware now searches for the image of exactly its own build variant.
+### Log of remote signals
 
-> [!IMPORTANT]
-> On ESP32 and ESP32-S3 (4 MB), the update **to** v1.22.8 can still fail via GitHub, because the old version picks the file. Please install v1.22.8 once via WebUI -> Tools -> OTA Update with the matching `_ota.bin` file. From then on, the update from GitHub works again.
+The log line of a received remote signal was cut off after 128 characters, so the channel was missing. It is now shorter, shows the channel as hex value and the name at the end: `remote signal | serial: 0x02c58900 | cmd: STOP | channel: 0x0002 | name: ...`
 
 ## changelog
 
-- [FIX] update from GitHub picks the image of the own build variant (ESP32 got the ESP32-S2 image)
+- [FIX] remote / sensor commands were sometimes ignored by the position tracking (incomplete telegram decoded)
+- [FIX] log line of remote signals shows the channel

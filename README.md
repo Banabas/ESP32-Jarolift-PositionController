@@ -361,7 +361,7 @@ The same serial therefore appears shifted by one hex digit: **FHEM serial = ESP 
 > Only the last 5 hex digits are used by the ESP, so **the first digit must be `0`**. This applies to the controller's own serial and to remote serials. To use a remote serial decoded by FHEM, divide it by 0x10 (drop the last digit, add a leading `0`).
 
 > [!TIP]
-> Every received telegram is logged, including those from unknown remotes (`received remote signal | name: unknown | serial: ...`). If a remote does not show up there at all, the serial number is not the cause — usually it is out of range. Test close to the ESP.
+> Every received telegram is logged, including those from unknown remotes (`remote signal | serial: ... | name: unknown`). If a remote does not show up there at all, the serial number is not the cause — usually it is out of range. Test close to the ESP.
 
 -----
 

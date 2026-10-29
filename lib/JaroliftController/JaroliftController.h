@@ -96,6 +96,7 @@ private:
   volatile unsigned int lowBuf_[kPulseBufferSize];
   volatile unsigned int hiBuf_[kPulseBufferSize];
   volatile unsigned int pbWrite_;
+  volatile unsigned long lastEdgeUs_; // micros() of the last RX edge
 
   // Empfangsdaten
   uint32_t rxSerial_;

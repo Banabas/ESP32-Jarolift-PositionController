@@ -6,7 +6,7 @@ JaroliftController *JaroliftController::instance_ = nullptr;
 
 JaroliftController::JaroliftController()
     : devCount_(0), deviceKeyMSB_(0), deviceKeyLSB_(0), button_(0), discL_(0), discH_(0), disc_(0), newSerial_(0), encrypted_(0), pack_(0),
-      pbWrite_(0), rxSerial_(0), rxHopCode_(0), rxFunction_(0), rxDiscH_(0), initOK_(false), steadyCount_(0), rxDataReady_(false) {
+      pbWrite_(0), lastEdgeUs_(0), rxSerial_(0), rxHopCode_(0), rxFunction_(0), rxDiscH_(0), initOK_(false), steadyCount_(0), rxDataReady_(false) {
 
   memset((void *)lowBuf_, 0, sizeof(lowBuf_));
   memset((void *)hiBuf_, 0, sizeof(hiBuf_));
@@ -370,6 +370,7 @@ void JaroliftController::handleRadioRxMeasure() {
   static unsigned long lineDown = 0;
   static unsigned long timeout = 0;
   unsigned long currentMicros = micros();
+  lastEdgeUs_ = currentMicros;
   int pinState = digitalRead(gpio_.gdo2);
   if (currentMicros - timeout > 3500) {
     pbWrite_ = 0;
@@ -792,8 +793,13 @@ void JaroliftController::cmdDeleteEndPointDown(uint8_t channel) {
  * *******************************************************************/
 void JaroliftController::processRxData() {
 
-  // check if RX-Buffer is full and start to decode
-  if ((lowBuf_[0] > 3650 && lowBuf_[0] < 4300) && (pbWrite_ >= 65 && pbWrite_ <= 75)) {
+  // check if RX-Buffer is full and start to decode.
+  // Wait until the telegram is complete: all 72 bits received (pulse 73), or a
+  // shorter telegram followed by a pause. Decoding at pulse 65 read the group
+  // bits 9-16 before they were received, as 1 - the channel then did not match.
+  const unsigned int len = pbWrite_;
+  const bool complete = len >= 73 || (micros() - lastEdgeUs_ > 2000);
+  if ((lowBuf_[0] > 3650 && lowBuf_[0] < 4300) && (len >= 65 && len <= 75) && complete) {
     rxDataReady_ = true;
     pbWrite_ = 0;
 
@@ -826,7 +832,7 @@ void JaroliftController::processRxData() {
     // extract high disc - group bits (9-16 Bit)
     rxDiscH_ = 0;
     for (int i = 0; i < 8; i++) {
-      if (lowBuf_[65 + i] < hiBuf_[65 + i])
+      if (65u + i >= len || lowBuf_[65 + i] < hiBuf_[65 + i]) // not received -> 0
         rxDiscH_ &= ~(1 << i);
       else
         rxDiscH_ |= (1 << i);
