@@ -96,7 +96,10 @@ private:
   volatile unsigned int lowBuf_[kPulseBufferSize];
   volatile unsigned int hiBuf_[kPulseBufferSize];
   volatile unsigned int pbWrite_;
-  volatile unsigned long lastEdgeUs_; // micros() of the last RX edge
+  volatile bool frameReady_; // complete telegram in the buffer, RX paused until processRxData()
+  static constexpr unsigned int kMinTelegram = 65;  // pulses up to the function code
+  static constexpr unsigned int kFullTelegram = 73; // sync + 72 bits incl. group bits 9-16
+  static bool isSync(unsigned int lowVal) { return lowVal > 3650 && lowVal < 4300; }
 
   // Empfangsdaten
   uint32_t rxSerial_;

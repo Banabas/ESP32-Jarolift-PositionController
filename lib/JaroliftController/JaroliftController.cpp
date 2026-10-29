@@ -6,7 +6,7 @@ JaroliftController *JaroliftController::instance_ = nullptr;
 
 JaroliftController::JaroliftController()
     : devCount_(0), deviceKeyMSB_(0), deviceKeyLSB_(0), button_(0), discL_(0), discH_(0), disc_(0), newSerial_(0), encrypted_(0), pack_(0),
-      pbWrite_(0), lastEdgeUs_(0), rxSerial_(0), rxHopCode_(0), rxFunction_(0), rxDiscH_(0), initOK_(false), steadyCount_(0), rxDataReady_(false) {
+      pbWrite_(0), frameReady_(false), rxSerial_(0), rxHopCode_(0), rxFunction_(0), rxDiscH_(0), initOK_(false), steadyCount_(0), rxDataReady_(false) {
 
   memset((void *)lowBuf_, 0, sizeof(lowBuf_));
   memset((void *)hiBuf_, 0, sizeof(hiBuf_));
@@ -370,8 +370,18 @@ void JaroliftController::handleRadioRxMeasure() {
   static unsigned long lineDown = 0;
   static unsigned long timeout = 0;
   unsigned long currentMicros = micros();
-  lastEdgeUs_ = currentMicros;
   int pinState = digitalRead(gpio_.gdo2);
+  // keep a received telegram until processRxData() has read it - the remote
+  // sends one telegram per key press, it must not be overwritten while the
+  // main loop is busy (e.g. saving the config)
+  if (frameReady_ || (currentMicros - timeout > 3500 && pbWrite_ >= kMinTelegram && isSync(lowBuf_[0]))) {
+    frameReady_ = true; // pause after a shorter telegram
+    if (pinState)
+      lineUp = currentMicros;
+    else
+      lineDown = currentMicros;
+    return;
+  }
   if (currentMicros - timeout > 3500) {
     pbWrite_ = 0;
   }
@@ -397,6 +407,9 @@ void JaroliftController::handleRadioRxMeasure() {
         lowBuf_[pbWrite_] = lowVal;
         pbWrite_++;
         timeout = currentMicros;
+        if (pbWrite_ >= kFullTelegram && isSync(lowBuf_[0])) {
+          frameReady_ = true; // all 72 bits received
+        }
       }
     }
   } else { // Übergang zu LOW
@@ -793,13 +806,14 @@ void JaroliftController::cmdDeleteEndPointDown(uint8_t channel) {
  * *******************************************************************/
 void JaroliftController::processRxData() {
 
-  // check if RX-Buffer is full and start to decode.
-  // Wait until the telegram is complete: all 72 bits received (pulse 73), or a
-  // shorter telegram followed by a pause. Decoding at pulse 65 read the group
-  // bits 9-16 before they were received, as 1 - the channel then did not match.
+  // decode only a complete telegram, marked by the RX interrupt: all 72 bits
+  // received, or a shorter telegram followed by a pause. Decoding at pulse 65
+  // read the group bits 9-16 before they were received - the channel then did
+  // not match.
+  if (!frameReady_)
+    return;
   const unsigned int len = pbWrite_;
-  const bool complete = len >= 73 || (micros() - lastEdgeUs_ > 2000);
-  if ((lowBuf_[0] > 3650 && lowBuf_[0] < 4300) && (len >= 65 && len <= 75) && complete) {
+  if (isSync(lowBuf_[0]) && len >= kMinTelegram && len <= 75) {
     rxDataReady_ = true;
     pbWrite_ = 0;
 
@@ -864,6 +878,10 @@ void JaroliftController::processRxData() {
     memset((void *)lowBuf_, 0, sizeof(lowBuf_));
     memset((void *)hiBuf_, 0, sizeof(hiBuf_));
   }
+
+  // release the buffer for the next telegram
+  pbWrite_ = 0;
+  frameReady_ = false;
 }
 
 /**

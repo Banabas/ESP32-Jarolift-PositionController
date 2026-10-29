@@ -6,7 +6,7 @@
 
 ### Remote commands ignored for the position
 
-Commands from a remote or sensor were sometimes ignored by the position tracking, e.g. STOP while the shutter was opening. The position then kept running to the end position, although the shutter had stopped. The receiver started decoding before the telegram was complete and read the channel bits 9-16 as 1, so the channel did not match the configured shutters. Decoding now waits for the complete telegram.
+Commands from a remote or sensor were sometimes ignored by the position tracking, e.g. STOP while the shutter was opening. The position then kept running to the end position, although the shutter had stopped. The receiver started decoding before the telegram was complete and read the channel bits 9-16 as 1, so the channel did not match the configured shutters. Decoding now waits for the complete telegram, and the telegram is kept until it is processed. Before, a key press could get lost while the controller was busy, e.g. saving the configuration.
 
 ### Log of remote signals
 
