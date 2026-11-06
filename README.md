@@ -293,7 +293,7 @@ Change the `upload_port` settings in `platformio.ini` to your ESP's IP address a
 Setup mode is activated when the ESP is restarted **5** times within 5 seconds each.
 
 If the ESP goes into Setup Mode, it creates its own access point:  
-📶 `"ESP32_Jarolift"`  
+📶 `"ESP32-Jarolift"`  
 Connect to it and open the WebUI at **http://192.168.4.1**
 
 ## Configuration

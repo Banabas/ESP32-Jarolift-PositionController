@@ -291,7 +291,7 @@ Den `upload_port` in `platformio.ini` auf die IP-Adresse des ESP setzen.
 Der Setup-Mode wird aktiviert, wenn der ESP **5 mal** innerhalb von je 5 Sekunden neu gestartet wird.
 
 Im Setup-Mode erstellt der ESP einen eigenen WLAN-Accesspoint:  
-WLAN: `"ESP32_Jarolift"` – dann WebUI öffnen unter **<http://192.168.4.1>**
+WLAN: `"ESP32-Jarolift"` – dann WebUI öffnen unter **<http://192.168.4.1>**
 
 ## Konfiguration
 
