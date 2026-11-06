@@ -1,16 +1,13 @@
-# v1.22.9
+# v1.22.10
 
 ## what's new
 
-### Remote commands ignored for the position
+Fixes [issue #15](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/15).
 
-Commands from a remote or sensor were sometimes ignored by the position tracking, e.g. STOP while the shutter was opening. The position then kept running to the end position, although the shutter had stopped. The receiver started decoding before the telegram was complete and read the channel bits 9-16 as 1, so the channel did not match the configured shutters. Decoding now waits for the complete telegram, and the telegram is kept until it is processed. Before, a key press could get lost while the controller was busy, e.g. saving the configuration.
+### No WiFi reconnect
 
-### Log of remote signals
-
-The log line of a received remote signal was cut off after 128 characters, so the channel was missing. It is now shorter, shows the channel as hex value and the name at the end: `remote signal | serial: 0x02c58900 | cmd: STOP | channel: 0x0002 | name: ...`
+After the WiFi connection was lost (e.g. router restart or WiFi switched off at night), the controller did not connect again until it was restarted. The disconnect was not registered, so the controller still assumed it was connected and never tried to reconnect. The disconnect is now detected, and the controller tries to reconnect every 30 seconds until the WiFi is back. It no longer restarts after 5 failed attempts, so a WiFi switched off at night does not cause a restart every few minutes.
 
 ## changelog
 
-- [FIX] remote / sensor commands were sometimes ignored by the position tracking (incomplete telegram decoded)
-- [FIX] log line of remote signals shows the channel
+- [FIX] WiFi reconnects after the connection was lost

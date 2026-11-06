@@ -84,25 +84,15 @@ void onWiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
 void checkWiFi() {
 
   // Ethernet is also not connected - so we need to establish WiFi
+  // keep trying as long as the AP is not reachable (e.g. WiFi switched off at night)
   if (wifiReconnectTimer.delayOnTrigger((!wifi.connected && !eth.connected), WIFI_RECONNECT)) {
     wifiReconnectTimer.delayReset();
-
-    if (wifi_retry < 5) {
-      wifi_retry++;
-      WiFi.mode(WIFI_STA);
-      WiFi.begin(config.wifi.ssid, config.wifi.password);
-      WiFi.hostname(config.wifi.hostname);
-      MDNS.begin(config.wifi.hostname);
-      ESP_LOGI(TAG, "WiFi Mode STA - Trying connect to: %s", config.wifi.ssid);
-      ESP_LOGI(TAG, "WiFi connection - attempt: %i/5", wifi_retry);
-    } else {
-      ESP_LOGW(TAG, "Wifi connection not possible, esp rebooting...");
-      EspSysUtil::RestartReason::saveLocal("no wifi connection");
-      yield();
-      delay(1000);
-      yield();
-      ESP.restart();
-    }
+    wifi_retry++;
+    WiFi.disconnect();
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(config.wifi.ssid, config.wifi.password);
+    ESP_LOGI(TAG, "WiFi Mode STA - Trying connect to: %s", config.wifi.ssid);
+    ESP_LOGI(TAG, "WiFi connection - attempt: %i", wifi_retry);
   }
 }
 
@@ -124,6 +114,8 @@ void setupWiFi() {
     // setup callback function
     WiFi.onEvent(onWiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(onWiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
+    WiFi.onEvent(onWiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+    WiFi.onEvent(onWiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_LOST_IP);
 
     // manual IP-Settings
     if (config.wifi.static_ip) {
