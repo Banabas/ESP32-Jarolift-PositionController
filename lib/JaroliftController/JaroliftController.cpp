@@ -483,7 +483,7 @@ void JaroliftController::cmdChannel(commands cmd, uint8_t channel) {
     generateKey();
     generateEncrypted();
     enterTx();
-    radioTx(2); // send command 2-times with same devCnt
+    radioTx(kTxRepeat); // send command kTxRepeat-times with same devCnt
     enterRx();
     updateDeviceCounter(true);
     break;
@@ -496,7 +496,7 @@ void JaroliftController::cmdChannel(commands cmd, uint8_t channel) {
     generateKey();
     generateEncrypted();
     enterTx();
-    radioTx(2); // send command 2-times with same devCnt
+    radioTx(kTxRepeat); // send command kTxRepeat-times with same devCnt
     enterRx();
     updateDeviceCounter(true);
     break;
@@ -509,7 +509,7 @@ void JaroliftController::cmdChannel(commands cmd, uint8_t channel) {
     generateKey();
     generateEncrypted();
     enterTx();
-    radioTx(2); // send command 2-times
+    radioTx(kTxRepeat); // send command kTxRepeat-times with same devCnt
     enterRx();
     updateDeviceCounter(true);
     break;
@@ -588,7 +588,7 @@ void JaroliftController::cmdGroup(commands cmd, uint16_t groupMask) {
   if (cmd == CMD_SHADE) {
     radioTx(20); // send "continuos STOP"
   } else {
-    radioTx(2); // send command 2-times
+    radioTx(kTxRepeat); // send command kTxRepeat-times with same devCnt
   }
 
   enterRx();
