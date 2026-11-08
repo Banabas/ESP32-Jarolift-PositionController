@@ -962,6 +962,11 @@ void JaroliftController::begin() {
   devCount_ = getDeviceCounter();
 
   cc1101_.setGPIO(gpio_.sck, gpio_.miso, gpio_.mosi, gpio_.cs, gpio_.gdo0);
+  // TX power must be set BEFORE init(): init() writes paTableByte into PATABLE[0]
+  // (single access, exactly like before). A later setTxPowerAmp() has no effect.
+  // Note: CS of the CC1101 is held LOW permanently (SPI.begin() does not drive it),
+  // so burst accesses are never terminated - do not use writeBurstReg().
+  cc1101_.setTxPowerAmp(PA_LongDistance);
   if (!cc1101_.init()) {
     ESP_LOGE(TAG, "Initialisation of the CC1101 module aborted!");
     return;
@@ -969,10 +974,6 @@ void JaroliftController::begin() {
   cc1101_.setSyncWord(kSyncWord, false);
   cc1101_.setCarrierFreq(CFREQ_433);
   cc1101_.disableAddressCheck();
-  // TX power: setTxPowerAmp() only changes a variable that init() has already
-  // written, so the PATABLE must be written explicitly here.
-  // Async OOK: GDO0 LOW = carrier on -> PATABLE[0], GDO0 HIGH = off -> PATABLE[1]
-  cc1101_.setPaTable(PA_LongDistance, 0x00);
 
   // GDO0 is driven by the RMT peripheral (exact pulse timing)
   initRmt();
