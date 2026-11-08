@@ -72,6 +72,7 @@ void onWiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
   ESP_LOGI(TAG, "WiFi connected");
   snprintf(wifi.ipAddress, sizeof(wifi.ipAddress), "%s", WiFi.localIP().toString().c_str());
   ESP_LOGI(TAG, "IP address: %s", wifi.ipAddress);
+  ESP_LOGI(TAG, "WiFi AP: BSSID %s | channel %d | RSSI %d dBm", WiFi.BSSIDstr().c_str(), WiFi.channel(), WiFi.RSSI());
   wifi.connected = true;
 }
 
@@ -90,6 +91,10 @@ void checkWiFi() {
     wifi_retry++;
     WiFi.disconnect();
     WiFi.mode(WIFI_STA);
+    // mesh (e.g. FRITZ!Repeater): scan all channels and connect to the strongest AP
+    // instead of the first one found
+    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+    WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
     WiFi.begin(config.wifi.ssid, config.wifi.password);
     ESP_LOGI(TAG, "WiFi Mode STA - Trying connect to: %s", config.wifi.ssid);
     ESP_LOGI(TAG, "WiFi connection - attempt: %i", wifi_retry);
@@ -125,6 +130,10 @@ void setupWiFi() {
     // connect to configured wifi AP
     WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(true);
+    // mesh (e.g. FRITZ!Repeater): scan all channels and connect to the strongest AP
+    // instead of the first one found
+    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+    WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
     WiFi.begin(config.wifi.ssid, config.wifi.password);
     WiFi.hostname(config.wifi.hostname);
     MDNS.begin(config.wifi.hostname);
