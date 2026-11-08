@@ -6,7 +6,7 @@ JaroliftController *JaroliftController::instance_ = nullptr;
 
 JaroliftController::JaroliftController()
     : devCount_(0), deviceKeyMSB_(0), deviceKeyLSB_(0), button_(0), discL_(0), discH_(0), disc_(0), newSerial_(0), encrypted_(0), pack_(0),
-      pbWrite_(0), frameReady_(false), rxSerial_(0), rxHopCode_(0), rxFunction_(0), rxDiscH_(0), initOK_(false), steadyCount_(0), rxDataReady_(false) {
+      pbWrite_(0), frameReady_(false), rxSerial_(0), rxHopCode_(0), rxFunction_(0), rxDiscH_(0), initOK_(false), steadyCount_(0), rxDataReady_(false), txSymbolCount_(0), txHalfUsed_(false), rmtOK_(false) {
 
   memset((void *)lowBuf_, 0, sizeof(lowBuf_));
   memset((void *)hiBuf_, 0, sizeof(hiBuf_));
@@ -166,16 +166,42 @@ void JaroliftController::updateDeviceCounter(bool increment) {
 
 /**
  *******************************************************************
+ * @brief   append one level segment to the RMT symbol buffer
+ * @details the CC1101 is in asynchronous TX mode: GDO0 LOW = carrier on
+ *          (PATABLE[0]), GDO0 HIGH = carrier off (PATABLE[1])
+ * @param   level, durationUs
+ * @return  none
+ * *******************************************************************/
+void JaroliftController::txAddLevel(uint8_t level, uint16_t durationUs) {
+  if (txSymbolCount_ >= kMaxTxSymbols) {
+    ESP_LOGE(TAG, "RMT symbol buffer overflow");
+    return;
+  }
+  rmt_data_t &sym = txSymbols_[txSymbolCount_];
+  if (!txHalfUsed_) {
+    sym.level0 = level;
+    sym.duration0 = durationUs;
+    sym.level1 = level; // placeholder, completed by the next segment
+    sym.duration1 = 0;
+    txHalfUsed_ = true;
+  } else {
+    sym.level1 = level;
+    sym.duration1 = durationUs;
+    txHalfUsed_ = false;
+    txSymbolCount_++;
+  }
+}
+
+/**
+ *******************************************************************
  * @brief   Generates sync-pulses (protocoll start)
  * @param   length
  * @return  none
  * *******************************************************************/
 void JaroliftController::radioTxFrame(int length) {
   for (int i = 0; i < length; ++i) {
-    digitalWrite(gpio_.gdo0, LOW);
-    delayMicroseconds(400);
-    digitalWrite(gpio_.gdo0, HIGH);
-    delayMicroseconds(380);
+    txAddLevel(LOW, 400);
+    txAddLevel(HIGH, 380);
   }
 }
 
@@ -189,15 +215,11 @@ void JaroliftController::radioTxGroupH() {
   for (int i = 0; i < 8; i++) {
     int bitVal = (discH_ >> i) & 0x1;
     if (bitVal == 1) {
-      digitalWrite(gpio_.gdo0, LOW);
-      delayMicroseconds(kLowPulse);
-      digitalWrite(gpio_.gdo0, HIGH);
-      delayMicroseconds(kHighPulse);
+      txAddLevel(LOW, kLowPulse);
+      txAddLevel(HIGH, kHighPulse);
     } else {
-      digitalWrite(gpio_.gdo0, LOW);
-      delayMicroseconds(kHighPulse);
-      digitalWrite(gpio_.gdo0, HIGH);
-      delayMicroseconds(kLowPulse);
+      txAddLevel(LOW, kHighPulse);
+      txAddLevel(HIGH, kLowPulse);
     }
   }
 }
@@ -205,32 +227,46 @@ void JaroliftController::radioTxGroupH() {
 /**
  *******************************************************************
  * @brief   tx routine to send data
+ * @details The complete telegram is built as RMT symbols and output by
+ *          the RMT peripheral. The pulse timing is therefore exact even
+ *          on single core chips (ESP32-S2) where WiFi interrupts used to
+ *          stretch the software delays and corrupt the telegram.
  * @param   repetitions
  * @return  none
  * *******************************************************************/
 void JaroliftController::radioTx(int repetitions) {
   pack_ = (button_ << 60) | (newSerial_ << 32) | encrypted_;
-  for (int a = 0; a < repetitions; a++) {
-    digitalWrite(gpio_.gdo0, LOW);
-    delayMicroseconds(1150);
-    radioTxFrame(13);
-    delayMicroseconds(3500);
-    for (int i = 0; i < 64; i++) {
-      int bitVal = (pack_ >> i) & 0x1;
-      if (bitVal == 1) {
-        digitalWrite(gpio_.gdo0, LOW);
-        delayMicroseconds(kLowPulse);
-        digitalWrite(gpio_.gdo0, HIGH);
-        delayMicroseconds(kHighPulse);
-      } else {
-        digitalWrite(gpio_.gdo0, LOW);
-        delayMicroseconds(kHighPulse);
-        digitalWrite(gpio_.gdo0, HIGH);
-        delayMicroseconds(kLowPulse);
-      }
+  if (!rmtOK_) {
+    ESP_LOGE(TAG, "RMT not initialized - telegram not sent");
+    return;
+  }
+
+  // build telegram once
+  txSymbolCount_ = 0;
+  txHalfUsed_ = false;
+  txAddLevel(LOW, 1150);
+  radioTxFrame(13);
+  txAddLevel(HIGH, 3500);
+  for (int i = 0; i < 64; i++) {
+    int bitVal = (pack_ >> i) & 0x1;
+    if (bitVal == 1) {
+      txAddLevel(LOW, kLowPulse);
+      txAddLevel(HIGH, kHighPulse);
+    } else {
+      txAddLevel(LOW, kHighPulse);
+      txAddLevel(HIGH, kLowPulse);
     }
-    radioTxGroupH();
-    delay(16);
+  }
+  radioTxGroupH();
+  if (txHalfUsed_) { // odd number of segments: close last symbol with idle level
+    txAddLevel(HIGH, 1);
+  }
+
+  for (int a = 0; a < repetitions; a++) {
+    if (!rmtWrite(gpio_.gdo0, txSymbols_, txSymbolCount_, RMT_WAIT_FOR_EVER)) {
+      ESP_LOGE(TAG, "rmtWrite failed");
+    }
+    delay(16); // pause between repetitions, line stays HIGH (carrier off)
   }
 }
 
@@ -905,7 +941,15 @@ void JaroliftController::begin() {
   cc1101_.disableAddressCheck();
   cc1101_.setTxPowerAmp(PA_LongDistance);
 
-  pinMode(gpio_.gdo0, OUTPUT);
+  // GDO0 is driven by the RMT peripheral (exact pulse timing)
+  rmtOK_ = rmtInit(gpio_.gdo0, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_2, kRmtResolutionHz);
+  if (rmtOK_) {
+    rmtSetEOT(gpio_.gdo0, HIGH); // idle level after each telegram = carrier off
+    rmt_data_t idle = {1, HIGH, 1, HIGH};
+    rmtWrite(gpio_.gdo0, &idle, 1, RMT_WAIT_FOR_EVER); // set line to idle level
+  } else {
+    ESP_LOGE(TAG, "RMT init on GDO0 failed");
+  }
   pinMode(gpio_.gdo2, INPUT_PULLUP);
   attachInterrupt(gpio_.gdo2, radioRxMeasureISR, CHANGE);
 

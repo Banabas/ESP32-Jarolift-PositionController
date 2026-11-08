@@ -135,6 +135,14 @@ private:
   // Hilfsfunktionen
   void updateDeviceCounter(bool increment);
 
+  // TX via RMT (hardware timing, independent of WiFi/task interrupts)
+  static constexpr uint32_t kRmtResolutionHz = 1000000; // 1 tick = 1 µs
+  static constexpr size_t kMaxTxSymbols = 96;           // telegram needs 86 symbols
+  rmt_data_t txSymbols_[kMaxTxSymbols];
+  size_t txSymbolCount_;
+  bool txHalfUsed_;
+  bool rmtOK_;
+  void txAddLevel(uint8_t level, uint16_t durationUs);
   void radioTxFrame(int length);
   void radioTxGroupH();
   void radioTx(int repetitions);
