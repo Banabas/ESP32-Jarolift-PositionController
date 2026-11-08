@@ -939,7 +939,10 @@ void JaroliftController::begin() {
   cc1101_.setSyncWord(kSyncWord, false);
   cc1101_.setCarrierFreq(CFREQ_433);
   cc1101_.disableAddressCheck();
-  cc1101_.setTxPowerAmp(PA_LongDistance);
+  // TX power: setTxPowerAmp() only changes a variable that init() has already
+  // written, so the PATABLE must be written explicitly here.
+  // Async OOK: GDO0 LOW = carrier on -> PATABLE[0], GDO0 HIGH = off -> PATABLE[1]
+  cc1101_.setPaTable(PA_LongDistance, 0x00);
 
   // GDO0 is driven by the RMT peripheral (exact pulse timing)
   rmtOK_ = rmtInit(gpio_.gdo0, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_2, kRmtResolutionHz);

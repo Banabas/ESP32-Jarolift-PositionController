@@ -299,6 +299,17 @@ void CC1101::setCCregs(void) {
 }
 
 /**
+ * setPaTable
+ *
+ * Write PATABLE[0] and PATABLE[1] in one burst access
+ */
+void CC1101::setPaTable(uint8_t level0, uint8_t level1) {
+  uint8_t table[2] = {level0, level1};
+  paTableByte = level0;
+  writeBurstReg(CC1101_PATABLE, table, 2);
+}
+
+/**
  * init
  *
  * Initialize CC1101 radio

@@ -421,6 +421,15 @@ public:
   void writeReg(uint8_t regAddr, uint8_t value);
 
   /**
+   * setPaTable
+   *
+   * Write the first two PATABLE entries (ASK/OOK with FREND0.PA_POWER = 1):
+   * 'level0'	PATABLE[0], used while the TX data bit is 0 (GDO0 LOW)
+   * 'level1'	PATABLE[1], used while the TX data bit is 1 (GDO0 HIGH)
+   */
+  void setPaTable(uint8_t level0, uint8_t level1);
+
+  /**
    * setCCregs
    *
    * Configure CC1101 registers
