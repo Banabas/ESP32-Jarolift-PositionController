@@ -509,7 +509,7 @@ void JaroliftController::cmdChannel(commands cmd, uint8_t channel) {
     generateKey();
     generateEncrypted();
     enterTx();
-    radioTx(kTxRepeat); // send command kTxRepeat-times with same devCnt
+    radioTx(kTxRepeatStop); // STOP only 2-times: repeated STOP = "continuous STOP" (shade)
     enterRx();
     updateDeviceCounter(true);
     break;
@@ -587,6 +587,8 @@ void JaroliftController::cmdGroup(commands cmd, uint16_t groupMask) {
   enterTx();
   if (cmd == CMD_SHADE) {
     radioTx(20); // send "continuos STOP"
+  } else if (cmd == CMD_STOP) {
+    radioTx(kTxRepeatStop); // STOP only 2-times: repeated STOP = "continuous STOP" (shade)
   } else {
     radioTx(kTxRepeat); // send command kTxRepeat-times with same devCnt
   }

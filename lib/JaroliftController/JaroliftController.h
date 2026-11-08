@@ -118,7 +118,8 @@ private:
   // Konstanten
   static constexpr int kLowPulse = 400; // in µs
   static constexpr int kHighPulse = 800;
-  static constexpr int kTxRepeat = 5; // repetitions for UP/DOWN/STOP (same counter -> executed once)
+  static constexpr int kTxRepeat = 5;     // repetitions for UP/DOWN (same counter -> executed once)
+  static constexpr int kTxRepeatStop = 2; // STOP unchanged: a held STOP is a command of its own (shade)
   static constexpr int kDebounce = 200;
   static constexpr uint8_t kSyncWord = 199;
 
