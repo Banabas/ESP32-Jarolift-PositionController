@@ -71,6 +71,9 @@ public:
   uint32_t getSerial(uint8_t channel);
   bool getCC1101State();
   uint8_t getRssi();
+  // millis() when the first telegram of the last transmission was complete
+  // (= the motor starts), 0 if nothing was sent
+  uint32_t getTxStartMs() const { return txStartMs_; }
 
 private:
   // Instanzvariablen (anstatt globaler Variablen)
@@ -144,6 +147,7 @@ private:
   size_t txSymbolCount_;
   bool txHalfUsed_;
   bool rmtOK_;
+  uint32_t txStartMs_;
   void initRmt();
   void txAddLevel(uint8_t level, uint16_t durationUs);
   void radioTxFrame(int length);
