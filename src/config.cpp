@@ -422,6 +422,8 @@ void configSaveToFile() {
   doc["auth"]["user"] = config.auth.user;
   doc["auth"]["password"] = config.auth.password;
 
+  doc["telnet"]["enable"] = config.telnet.enable;
+
   doc["logger"]["enable"] = config.log.enable;
   doc["logger"]["level"] = config.log.level;
   doc["logger"]["order"] = config.log.order;
@@ -656,6 +658,9 @@ void configLoadFromFile() {
     config.auth.enable = doc["auth"]["enable"];
     EspStrUtil::readJSONstring(config.auth.user, sizeof(config.auth.user), doc["auth"]["user"]);
     EspStrUtil::readJSONstring(config.auth.password, sizeof(config.auth.password), doc["auth"]["password"]);
+
+    // missing in older config files -> telnet stays off
+    config.telnet.enable = doc["telnet"]["enable"] | false;
 
     config.log.enable = doc["logger"]["enable"];
     config.log.level = doc["logger"]["level"];

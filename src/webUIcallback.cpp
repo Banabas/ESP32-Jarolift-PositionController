@@ -5,6 +5,7 @@
 #include <webUI.h>
 #include <webUIupdates.h>
 #include <shutter_position.h>
+#include <telnet.h>
 
 static const char *TAG = "WEB"; // LOG TAG
 uint8_t srvShutter = 0;
@@ -137,6 +138,12 @@ void webCallback(const char *elementId, const char *value) {
   }
   if (strcmp(elementId, "cfg_eth_dns") == 0) {
     snprintf(config.eth.dns, sizeof(config.eth.dns), "%s", value);
+  }
+
+  // Telnet
+  if (strcmp(elementId, "cfg_telnet_enable") == 0) {
+    config.telnet.enable = EspStrUtil::stringToBool(value);
+    telnetEnable(config.telnet.enable);
   }
 
   // Authentication

@@ -2,6 +2,14 @@
 // localization texts
 // --------------------------------------
 const user_translations = {
+  telnet: {
+    de: "Telnet",
+    en: "Telnet",
+  },
+  telnet_info: {
+    de: "Telnet-Konsole auf Port 23 (ohne Login). Nur bei Bedarf aktivieren.",
+    en: "Telnet console on port 23 (no login). Only enable when needed.",
+  },
   timer: {
     de: "Timer",
     en: "Timer",
