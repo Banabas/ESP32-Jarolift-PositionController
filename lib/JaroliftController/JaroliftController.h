@@ -144,6 +144,7 @@ private:
   size_t txSymbolCount_;
   bool txHalfUsed_;
   bool rmtOK_;
+  void initRmt();
   void txAddLevel(uint8_t level, uint16_t durationUs);
   void radioTxFrame(int length);
   void radioTxGroupH();

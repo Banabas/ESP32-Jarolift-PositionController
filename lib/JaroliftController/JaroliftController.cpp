@@ -1,5 +1,6 @@
 // JaroliftController.cpp
 #include "JaroliftController.h"
+#include "esp32-hal-periman.h"
 
 // Definition of the static instance pointer
 JaroliftController *JaroliftController::instance_ = nullptr;
@@ -166,6 +167,24 @@ void JaroliftController::updateDeviceCounter(bool increment) {
 
 /**
  *******************************************************************
+ * @brief   attach the RMT TX channel to GDO0
+ * @param   none
+ * @return  none
+ * *******************************************************************/
+void JaroliftController::initRmt() {
+  rmtOK_ = rmtInit(gpio_.gdo0, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_2, kRmtResolutionHz);
+  if (rmtOK_) {
+    rmtSetEOT(gpio_.gdo0, HIGH); // idle level after each telegram = carrier off
+    rmt_data_t idle = {1, HIGH, 1, HIGH};
+    rmtWrite(gpio_.gdo0, &idle, 1, RMT_WAIT_FOR_EVER); // set line to idle level
+    ESP_LOGI(TAG, "RMT TX ready on GDO0 (GPIO %d)", gpio_.gdo0);
+  } else {
+    ESP_LOGE(TAG, "RMT init on GDO0 (GPIO %d) failed", gpio_.gdo0);
+  }
+}
+
+/**
+ *******************************************************************
  * @brief   append one level segment to the RMT symbol buffer
  * @details the CC1101 is in asynchronous TX mode: GDO0 LOW = carrier on
  *          (PATABLE[0]), GDO0 HIGH = carrier off (PATABLE[1])
@@ -236,6 +255,10 @@ void JaroliftController::radioTxGroupH() {
  * *******************************************************************/
 void JaroliftController::radioTx(int repetitions) {
   pack_ = (button_ << 60) | (newSerial_ << 32) | encrypted_;
+  if (perimanGetPinBusType(gpio_.gdo0) != ESP32_BUS_TYPE_RMT_TX) {
+    ESP_LOGW(TAG, "GDO0 (GPIO %d) is no longer attached to RMT (bus type %d) - re-init", gpio_.gdo0, (int)perimanGetPinBusType(gpio_.gdo0));
+    initRmt();
+  }
   if (!rmtOK_) {
     ESP_LOGE(TAG, "RMT not initialized - telegram not sent");
     return;
@@ -262,12 +285,17 @@ void JaroliftController::radioTx(int repetitions) {
     txAddLevel(HIGH, 1);
   }
 
+  int okCount = 0;
   for (int a = 0; a < repetitions; a++) {
-    if (!rmtWrite(gpio_.gdo0, txSymbols_, txSymbolCount_, RMT_WAIT_FOR_EVER)) {
+    if (rmtWrite(gpio_.gdo0, txSymbols_, txSymbolCount_, RMT_WAIT_FOR_EVER)) {
+      okCount++;
+    } else {
       ESP_LOGE(TAG, "rmtWrite failed");
     }
     delay(16); // pause between repetitions, line stays HIGH (carrier off)
   }
+  ESP_LOGI(TAG, "TX via RMT: %u symbols, %d/%d repetitions sent, MARCSTATE 0x%02X", (unsigned)txSymbolCount_, okCount, repetitions,
+           cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F);
 }
 
 /**
@@ -947,14 +975,7 @@ void JaroliftController::begin() {
   cc1101_.setPaTable(PA_LongDistance, 0x00);
 
   // GDO0 is driven by the RMT peripheral (exact pulse timing)
-  rmtOK_ = rmtInit(gpio_.gdo0, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_2, kRmtResolutionHz);
-  if (rmtOK_) {
-    rmtSetEOT(gpio_.gdo0, HIGH); // idle level after each telegram = carrier off
-    rmt_data_t idle = {1, HIGH, 1, HIGH};
-    rmtWrite(gpio_.gdo0, &idle, 1, RMT_WAIT_FOR_EVER); // set line to idle level
-  } else {
-    ESP_LOGE(TAG, "RMT init on GDO0 failed");
-  }
+  initRmt();
   pinMode(gpio_.gdo2, INPUT_PULLUP);
   attachInterrupt(gpio_.gdo2, radioRxMeasureISR, CHANGE);
 
