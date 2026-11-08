@@ -24,6 +24,12 @@ s_espInfo espInfo;
 
 static muTimer wifiReconnectTimer = muTimer(); // timer for reconnect delay
 static int wifi_retry = 0;
+
+// periodic roaming (similar to Tasmota SetOption57): rescan and switch to a clearly stronger AP
+static const uint32_t WIFI_ROAM_INTERVAL = 30UL * 60UL * 1000UL; // scan every 30 minutes
+static const int WIFI_ROAM_MIN_GAIN = 8;                          // switch only if >= 8 dB stronger
+static uint32_t wifiRoamLastScan = 0;
+static bool wifiRoamScanRunning = false;
 static const char *TAG = "SETUP"; // LOG TAG
 
 /**
@@ -72,8 +78,71 @@ void onWiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
   ESP_LOGI(TAG, "WiFi connected");
   snprintf(wifi.ipAddress, sizeof(wifi.ipAddress), "%s", WiFi.localIP().toString().c_str());
   ESP_LOGI(TAG, "IP address: %s", wifi.ipAddress);
-  ESP_LOGI(TAG, "WiFi AP: BSSID %s | channel %d | RSSI %d dBm", WiFi.BSSIDstr().c_str(), WiFi.channel(), WiFi.RSSI());
+  ESP_LOGI(TAG, "WiFi AP: BSSID %s | channel %d | RSSI %d dBm", WiFi.BSSIDstr().c_str(), (int)WiFi.channel(), (int)WiFi.RSSI());
   wifi.connected = true;
+}
+
+/**
+ * *******************************************************************
+ * @brief   periodic check for a stronger access point of the same SSID
+ *          (mesh / repeater) and switch to it if clearly better
+ * @param   none
+ * @return  none
+ * *******************************************************************/
+static void checkWiFiRoaming() {
+  if (!wifi.connected || eth.connected) {
+    wifiRoamScanRunning = false;
+    wifiRoamLastScan = millis(); // restart interval after (re)connect
+    return;
+  }
+
+  if (!wifiRoamScanRunning) {
+    if (millis() - wifiRoamLastScan < WIFI_ROAM_INTERVAL)
+      return;
+    // asynchronous scan for our SSID on all channels
+    if (WiFi.scanNetworks(true, false, false, 300, 0, config.wifi.ssid) == WIFI_SCAN_FAILED) {
+      ESP_LOGW(TAG, "WiFi roaming: scan could not be started");
+      wifiRoamLastScan = millis();
+      return;
+    }
+    wifiRoamScanRunning = true;
+    return;
+  }
+
+  int16_t n = WiFi.scanComplete();
+  if (n == WIFI_SCAN_RUNNING)
+    return;
+
+  wifiRoamScanRunning = false;
+  wifiRoamLastScan = millis();
+  if (n <= 0) {
+    WiFi.scanDelete();
+    return;
+  }
+
+  int currentRssi = WiFi.RSSI();
+  String currentBssid = WiFi.BSSIDstr();
+  int best = -1;
+  for (int i = 0; i < n; i++) {
+    if (WiFi.SSID(i) != String(config.wifi.ssid))
+      continue;
+    if (best < 0 || WiFi.RSSI(i) > WiFi.RSSI(best))
+      best = i;
+  }
+
+  if (best >= 0 && WiFi.BSSIDstr(best) != currentBssid && WiFi.RSSI(best) >= currentRssi + WIFI_ROAM_MIN_GAIN) {
+    uint8_t bssid[6];
+    memcpy(bssid, WiFi.BSSID(best), 6);
+    int32_t channel = WiFi.channel(best);
+    ESP_LOGI(TAG, "WiFi roaming: switching from %s (%d dBm) to %s (%d dBm, channel %d)", currentBssid.c_str(), currentRssi,
+             WiFi.BSSIDstr(best).c_str(), (int)WiFi.RSSI(best), (int)channel);
+    WiFi.scanDelete();
+    WiFi.begin(config.wifi.ssid, config.wifi.password, channel, bssid, true);
+  } else {
+    ESP_LOGD(TAG, "WiFi roaming: staying on %s (%d dBm), best: %s (%d dBm)", currentBssid.c_str(), currentRssi,
+             best >= 0 ? WiFi.BSSIDstr(best).c_str() : "-", best >= 0 ? (int)WiFi.RSSI(best) : 0);
+    WiFi.scanDelete();
+  }
 }
 
 /**
@@ -99,6 +168,8 @@ void checkWiFi() {
     ESP_LOGI(TAG, "WiFi Mode STA - Trying connect to: %s", config.wifi.ssid);
     ESP_LOGI(TAG, "WiFi connection - attempt: %i", wifi_retry);
   }
+
+  checkWiFiRoaming();
 }
 
 /**
