@@ -74,6 +74,9 @@ public:
   // direct CC1101 register access for tests (telnet "cc1101"), not persistent
   uint8_t ccReadReg(uint8_t reg);
   void ccWriteReg(uint8_t reg, uint8_t value);
+  // millis() when the first telegram of the last transmission was complete
+  // (= the motor starts), 0 if nothing was sent
+  uint32_t getTxStartMs() const { return txStartMs_; }
 
 private:
   // Instanzvariablen (anstatt globaler Variablen)
@@ -152,6 +155,7 @@ private:
   uint32_t rxOkCount_ = 0;
   uint32_t rxDiscardCount_ = 0;
   uint32_t rxStatMs_ = 0;
+  uint32_t txStartMs_;
   void initRmt();
   void txAddLevel(uint8_t level, uint16_t durationUs);
   void radioTxFrame(int length);

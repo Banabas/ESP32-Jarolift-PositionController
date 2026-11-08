@@ -40,8 +40,9 @@ bool     shutterPosSetTarget(uint8_t ch, int8_t targetPct,
                              void (*upCb)(JaroCmdType, uint8_t),
                              void (*downCb)(JaroCmdType, uint8_t));
 
-void     shutterPosNotifyUp(uint8_t ch);
-void     shutterPosNotifyDown(uint8_t ch);
+// startMs: millis() when the motor started (0 = now)
+void     shutterPosNotifyUp(uint8_t ch, uint32_t startMs = 0);
+void     shutterPosNotifyDown(uint8_t ch, uint32_t startMs = 0);
 void     shutterPosNotifyStop(uint8_t ch);
 
 void     shutterPosForceOpen(uint8_t ch);

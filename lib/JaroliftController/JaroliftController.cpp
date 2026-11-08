@@ -7,7 +7,7 @@ JaroliftController *JaroliftController::instance_ = nullptr;
 
 JaroliftController::JaroliftController()
     : devCount_(0), deviceKeyMSB_(0), deviceKeyLSB_(0), button_(0), discL_(0), discH_(0), disc_(0), newSerial_(0), encrypted_(0), pack_(0),
-      pbWrite_(0), frameReady_(false), rxSerial_(0), rxHopCode_(0), rxFunction_(0), rxDiscH_(0), initOK_(false), steadyCount_(0), rxDataReady_(false), txSymbolCount_(0), txHalfUsed_(false), rmtOK_(false) {
+      pbWrite_(0), frameReady_(false), rxSerial_(0), rxHopCode_(0), rxFunction_(0), rxDiscH_(0), initOK_(false), steadyCount_(0), rxDataReady_(false), txSymbolCount_(0), txHalfUsed_(false), rmtOK_(false), txStartMs_(0) {
 
   memset((void *)lowBuf_, 0, sizeof(lowBuf_));
   memset((void *)hiBuf_, 0, sizeof(hiBuf_));
@@ -255,6 +255,7 @@ void JaroliftController::radioTxGroupH() {
  * *******************************************************************/
 void JaroliftController::radioTx(int repetitions) {
   pack_ = (button_ << 60) | (newSerial_ << 32) | encrypted_;
+  txStartMs_ = 0;
   if (perimanGetPinBusType(gpio_.gdo0) != ESP32_BUS_TYPE_RMT_TX) {
     ESP_LOGW(TAG, "GDO0 (GPIO %d) is no longer attached to RMT (bus type %d) - re-init", gpio_.gdo0, (int)perimanGetPinBusType(gpio_.gdo0));
     initRmt();
@@ -288,6 +289,9 @@ void JaroliftController::radioTx(int repetitions) {
   int okCount = 0;
   for (int a = 0; a < repetitions; a++) {
     if (rmtWrite(gpio_.gdo0, txSymbols_, txSymbolCount_, RMT_WAIT_FOR_EVER)) {
+      if (okCount == 0) {
+        txStartMs_ = millis(); // the receiver acts on the first complete telegram
+      }
       okCount++;
     } else {
       ESP_LOGE(TAG, "rmtWrite failed");

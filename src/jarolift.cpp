@@ -100,8 +100,8 @@ static bool isTracked(uint8_t channel) {
  * @param   channel
  * @return  none
  * *******************************************************************/
-static void shutterMoveUp(uint8_t channel) {
-  shutterPosNotifyUp(channel);
+static void shutterMoveUp(uint8_t channel, uint32_t startMs = 0) {
+  shutterPosNotifyUp(channel, startMs);
   if (isTracked(channel)) {
     // the final position is sent when the end-stop or target is reached
     mqttSendState(channel, "opening");
@@ -110,8 +110,8 @@ static void shutterMoveUp(uint8_t channel) {
   }
 }
 
-static void shutterMoveDown(uint8_t channel) {
-  shutterPosNotifyDown(channel);
+static void shutterMoveDown(uint8_t channel, uint32_t startMs = 0) {
+  shutterPosNotifyDown(channel, startMs);
   if (isTracked(channel)) {
     mqttSendState(channel, "closing");
   } else {
@@ -369,12 +369,12 @@ void processJaroCommands() {
       switch (cmd.single.type) {
       case CMD_UP:
         jarolift.cmdChannel(JaroliftController::CMD_UP, cmd.single.channel);
-        shutterMoveUp(cmd.single.channel);
+        shutterMoveUp(cmd.single.channel, jarolift.getTxStartMs());
         ESP_LOGI(TAG, "execute cmd: UP - channel: %s", chName(cmd.single.channel));
         break;
       case CMD_DOWN:
         jarolift.cmdChannel(JaroliftController::CMD_DOWN, cmd.single.channel);
-        shutterMoveDown(cmd.single.channel);
+        shutterMoveDown(cmd.single.channel, jarolift.getTxStartMs());
         ESP_LOGI(TAG, "execute cmd: DOWN - channel: %s", chName(cmd.single.channel));
         break;
       case CMD_STOP:
@@ -403,12 +403,12 @@ void processJaroCommands() {
       case CMD_GRP_UP:
         jarolift.cmdGroup(JaroliftController::CMD_UP, cmd.group.group_mask);
         ESP_LOGI(TAG, "execute group cmd: UP - mask: %04X", cmd.group.group_mask);
-        forEachChannel(cmd.group.group_mask, shutterMoveUp);
+        forEachChannel(cmd.group.group_mask, [](uint8_t ch) { shutterMoveUp(ch, jarolift.getTxStartMs()); });
         break;
       case CMD_GRP_DOWN:
         jarolift.cmdGroup(JaroliftController::CMD_DOWN, cmd.group.group_mask);
         ESP_LOGI(TAG, "execute group cmd: DOWN - mask: %04X", cmd.group.group_mask);
-        forEachChannel(cmd.group.group_mask, shutterMoveDown);
+        forEachChannel(cmd.group.group_mask, [](uint8_t ch) { shutterMoveDown(ch, jarolift.getTxStartMs()); });
         break;
       case CMD_GRP_STOP:
         jarolift.cmdGroup(JaroliftController::CMD_STOP, cmd.group.group_mask);

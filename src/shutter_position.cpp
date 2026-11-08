@@ -219,12 +219,12 @@ bool shutterPosSetTarget(uint8_t ch, int8_t targetPct,
 
 // ─── Notify (called when RF command is actually transmitted) ──────────────────
 
-void shutterPosNotifyUp(uint8_t ch) {
+void shutterPosNotifyUp(uint8_t ch, uint32_t startMs) {
     if (ch >= CH_COUNT) return;
     if (s[ch].moving) s[ch].pos = calcPos(ch);
 
     s[ch].posAtStart = s[ch].pos;
-    s[ch].startMs    = millis();
+    s[ch].startMs    = startMs ? startMs : millis();
     s[ch].goingDown  = false;
     s[ch].moving     = true;
     s[ch].selfStop   = false;
@@ -259,12 +259,12 @@ void shutterPosNotifyUp(uint8_t ch) {
     }
 }
 
-void shutterPosNotifyDown(uint8_t ch) {
+void shutterPosNotifyDown(uint8_t ch, uint32_t startMs) {
     if (ch >= CH_COUNT) return;
     if (s[ch].moving) s[ch].pos = calcPos(ch);
 
     s[ch].posAtStart = s[ch].pos;
-    s[ch].startMs    = millis();
+    s[ch].startMs    = startMs ? startMs : millis();
     s[ch].goingDown  = true;
     s[ch].moving     = true;
     s[ch].selfStop   = false;
