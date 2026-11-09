@@ -157,6 +157,10 @@ struct s_cfg_auth {
   char password[64];
 };
 
+struct s_cfg_telnet {
+  bool enable = false;
+};
+
 struct s_cfg_log {
   bool enable = true;
   int level = 3;
@@ -172,6 +176,7 @@ struct s_config {
   s_cfg_ntp ntp;
   s_cfg_gpio gpio;
   s_cfg_auth auth;
+  s_cfg_telnet telnet;
   s_cfg_log log;
   s_cfg_jaro jaro;
   s_cfg_timer    timer[6];      // legacy (unused)

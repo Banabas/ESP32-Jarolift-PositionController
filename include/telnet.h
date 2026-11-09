@@ -25,4 +25,5 @@ extern s_telnetIF telnetIF;
 /* P R O T O T Y P E S ********************************************************/
 void setupTelnet();
 void cyclicTelnet();
+void telnetEnable(bool enable);
 void telnetShell();

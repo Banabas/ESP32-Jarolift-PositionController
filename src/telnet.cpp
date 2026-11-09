@@ -13,6 +13,7 @@ s_telnetIF telnetIF;
 static EscapeCodes ansi;
 static char param[MAX_PAR][MAX_CHAR];
 static bool msgAvailable = false;
+static bool telnetRunning = false;
 static const char *TAG = "TELNET"; // LOG TAG
 
 /* P R O T O T Y P E S ********************************************************/
@@ -97,10 +98,39 @@ void setupTelnet() {
   telnet.onDisconnect(onTelnetDisconnect);
   telnet.onInputReceived(onTelnetInput);
 
-  if (telnet.begin(23, false)) {
-    ESP_LOGI(TAG, "Telnet Server running!");
+  telnetEnable(config.telnet.enable);
+}
+
+/**
+ * *******************************************************************
+ * @brief   start or stop the Telnet server (setting in the WebUI)
+ * @param   enable  true = start, false = stop
+ * @return  none
+ * *******************************************************************/
+void telnetEnable(bool enable) {
+  if (enable == telnetRunning) {
+    if (!enable) {
+      ESP_LOGI(TAG, "Telnet Server disabled");
+    }
+    return;
+  }
+
+  if (enable) {
+    if (telnet.begin(23, false)) {
+      telnetRunning = true;
+      ESP_LOGI(TAG, "Telnet Server running!");
+    } else {
+      ESP_LOGI(TAG, "Telnet Server error!");
+    }
   } else {
-    ESP_LOGI(TAG, "Telnet Server error!");
+    telnetIF.serialStream = false;
+    msgAvailable = false;
+    if (telnet.isConnected()) {
+      telnet.disconnectClient();
+    }
+    telnet.stop();
+    telnetRunning = false;
+    ESP_LOGI(TAG, "Telnet Server stopped");
   }
 }
 
@@ -111,6 +141,9 @@ void setupTelnet() {
  * @return  none
  * *******************************************************************/
 void cyclicTelnet() {
+  if (!telnetRunning) {
+    return;
+  }
 
   telnet.loop();
 
