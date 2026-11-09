@@ -918,8 +918,39 @@ void JaroliftController::processRxData() {
         rxDiscH_ |= (1 << i);
     }
 
+    // plausibility check 1: every bit = one LOW + one HIGH pulse of 400/800 us,
+    // period ~1200 us. Random noise (AGC of the receiver amplifies noise when
+    // no transmitter is active) occasionally looks like a sync pulse and is
+    // then "decoded" into garbage.
+    bool pulsesOk = true;
+    for (unsigned int i = 1; i <= 64 && i < len; i++) {
+      unsigned long period = lowBuf_[i] + hiBuf_[i];
+      if (lowBuf_[i] < 300 || hiBuf_[i] < 300 || period < 900 || period > 1500) {
+        pulsesOk = false;
+        break;
+      }
+    }
+
     rxKeyGen();
     uint32_t decoded = rxDecode();
+
+    // plausibility check 2 (KeeLoq): the decrypted hopcode contains the low
+    // byte of the serial number in bits 16-23. Valid only for genuine telegrams
+    // with the configured manufacturer key; noise matches with 1/256.
+    bool keeloqOk = (((decoded >> 16) & 0xFF) == (rxSerial_ & 0xFF));
+
+    if (!pulsesOk || !keeloqOk) {
+      ESP_LOGD(TAG, "RX discarded (%s): serial 0x%08lX", !pulsesOk ? "pulse timing" : "KeeLoq check", (unsigned long)rxSerial_);
+      rxDiscH_ = 0;
+      rxHopCode_ = 0;
+      rxFunction_ = 0;
+      memset((void *)lowBuf_, 0, sizeof(lowBuf_));
+      memset((void *)hiBuf_, 0, sizeof(hiBuf_));
+      pbWrite_ = 0;
+      frameReady_ = false;
+      return;
+    }
+
     if (rxFunction_ == 0x4)
       steadyCount_++;
     else
