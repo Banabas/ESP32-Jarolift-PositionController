@@ -167,16 +167,17 @@ static void checkWiFiRoaming() {
     uint8_t bssid[6];
     memcpy(bssid, WiFi.BSSID(bestOther), 6);
     int32_t channel = WiFi.channel(bestOther);
-    ESP_LOGI(TAG, "WiFi roaming: switching from %s (%d dBm) to %s (%d dBm, channel %d)", currentBssid.c_str(), currentScanRssi,
-             WiFi.BSSIDstr(bestOther).c_str(), (int)WiFi.RSSI(bestOther), (int)channel);
+    // log entries are limited to 128 characters incl. timestamp - keep it short
+    ESP_LOGI(TAG, "WiFi roam: switch %s %d -> %s %d dBm ch%d", currentBssid.c_str(), currentScanRssi, WiFi.BSSIDstr(bestOther).c_str(),
+             (int)WiFi.RSSI(bestOther), (int)channel);
     WiFi.scanDelete();
     WiFi.begin(config.wifi.ssid, config.wifi.password, channel, bssid, true);
   } else {
     if (bestOther >= 0) {
-      ESP_LOGD(TAG, "WiFi roaming: staying on %s (%d dBm, live %d dBm) - other AP %s (%d dBm) not >= %d dB stronger", currentBssid.c_str(),
-               currentScanRssi, liveRssi, WiFi.BSSIDstr(bestOther).c_str(), (int)WiFi.RSSI(bestOther), WIFI_ROAM_MIN_GAIN);
+      ESP_LOGD(TAG, "WiFi roam: stay %s %d/%d, other %s %d dBm (<+%d)", currentBssid.c_str(), currentScanRssi, liveRssi,
+               WiFi.BSSIDstr(bestOther).c_str(), (int)WiFi.RSSI(bestOther), WIFI_ROAM_MIN_GAIN);
     } else {
-      ESP_LOGD(TAG, "WiFi roaming: staying on %s (%d dBm, live %d dBm) - no other AP found", currentBssid.c_str(), currentScanRssi, liveRssi);
+      ESP_LOGD(TAG, "WiFi roam: stay %s %d/%d dBm, no other AP", currentBssid.c_str(), currentScanRssi, liveRssi);
     }
     WiFi.scanDelete();
   }

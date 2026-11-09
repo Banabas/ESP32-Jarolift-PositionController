@@ -946,13 +946,13 @@ void JaroliftController::processRxData() {
       if (!pulsesOk) {
         // diagnostics: sync gap, number of pulses, first failing bit and some
         // HIGH/LOW pairs in us (HIGH = carrier on) to identify the source
-        char pulses[96];
+        // log entries are limited to 128 characters incl. timestamp - keep it short
+        char pulses[40];
         int pos = 0;
-        for (unsigned int i = 1; i <= 6 && i < len && pos < (int)sizeof(pulses) - 12; i++) {
+        for (unsigned int i = 1; i <= 4 && i < len && pos < (int)sizeof(pulses) - 11; i++) {
           pos += snprintf(pulses + pos, sizeof(pulses) - pos, " %u/%u", hiBuf_[i], lowBuf_[i]);
         }
-        ESP_LOGD(TAG, "RX discarded: sync %u us, %u pulses, bit %u bad (H/L %u/%u), first H/L:%s", lowBuf_[0], len, badIdx - 1,
-                 hiBuf_[badIdx], lowBuf_[badIdx], pulses);
+        ESP_LOGD(TAG, "RX diag: sync %u, %u p, bit %u %u/%u, H/L%s", lowBuf_[0], len, badIdx - 1, hiBuf_[badIdx], lowBuf_[badIdx], pulses);
       }
       rxDiscH_ = 0;
       rxHopCode_ = 0;
