@@ -923,10 +923,12 @@ void JaroliftController::processRxData() {
     // no transmitter is active) occasionally looks like a sync pulse and is
     // then "decoded" into garbage.
     bool pulsesOk = true;
+    unsigned int badIdx = 0;
     for (unsigned int i = 1; i <= 64 && i < len; i++) {
       unsigned long period = lowBuf_[i] + hiBuf_[i];
       if (lowBuf_[i] < 300 || hiBuf_[i] < 300 || period < 900 || period > 1500) {
         pulsesOk = false;
+        badIdx = i;
         break;
       }
     }
@@ -941,6 +943,17 @@ void JaroliftController::processRxData() {
 
     if (!pulsesOk || !keeloqOk) {
       ESP_LOGD(TAG, "RX discarded (%s): serial 0x%08lX", !pulsesOk ? "pulse timing" : "KeeLoq check", (unsigned long)rxSerial_);
+      if (!pulsesOk) {
+        // diagnostics: sync gap, number of pulses, first failing bit and some
+        // HIGH/LOW pairs in us (HIGH = carrier on) to identify the source
+        char pulses[96];
+        int pos = 0;
+        for (unsigned int i = 1; i <= 6 && i < len && pos < (int)sizeof(pulses) - 12; i++) {
+          pos += snprintf(pulses + pos, sizeof(pulses) - pos, " %u/%u", hiBuf_[i], lowBuf_[i]);
+        }
+        ESP_LOGD(TAG, "RX discarded: sync %u us, %u pulses, bit %u bad (H/L %u/%u), first H/L:%s", lowBuf_[0], len, badIdx - 1,
+                 hiBuf_[badIdx], lowBuf_[badIdx], pulses);
+      }
       rxDiscH_ = 0;
       rxHopCode_ = 0;
       rxFunction_ = 0;
