@@ -131,7 +131,7 @@ void updateSystemInfoElements() {
   }
 
   // ESP informations
-  webUI.addJson(jsonDoc, "p09_esp_flash_usage", ESP.getSketchSize() * 100.0f / ESP.getFreeSketchSpace());
+  webUI.addJson(jsonDoc, "p09_esp_flash_usage", getFlashUsagePercent());
   webUI.addJson(jsonDoc, "p09_esp_heap_usage", (ESP.getHeapSize() - ESP.getFreeHeap()) * 100.0f / ESP.getHeapSize());
   webUI.addJson(jsonDoc, "p09_esp_maxallocheap", ESP.getMaxAllocHeap() / 1000.0f);
   webUI.addJson(jsonDoc, "p09_esp_minfreeheap", ESP.getMinFreeHeap() / 1000.0f);

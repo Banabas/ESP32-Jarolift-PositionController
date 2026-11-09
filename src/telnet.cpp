@@ -286,7 +286,7 @@ void cmdInfo(char param[MAX_PAR][MAX_CHAR]) {
   telnet.print(ansi.setFG(ANSI_BRIGHT_WHITE));
   telnet.println("ESP-INFO");
   telnet.print(ansi.reset());
-  telnet.printf("ESP Flash Usage: %s %%\n", EspStrUtil::floatToString((float)ESP.getSketchSize() * 100 / ESP.getFreeSketchSpace(), 1));
+  telnet.printf("ESP Flash Usage: %s %%\n", EspStrUtil::floatToString(getFlashUsagePercent(), 1));
   telnet.printf("ESP Heap Usage: %s %%\n", EspStrUtil::floatToString((float)ESP.getFreeHeap() * 100 / ESP.getHeapSize(), 1));
   telnet.printf("ESP MAX Alloc Heap: %s KB\n", EspStrUtil::floatToString((float)ESP.getMaxAllocHeap() / 1000.0, 1));
   telnet.printf("ESP MAX Alloc Heap: %s KB\n", EspStrUtil::floatToString((float)ESP.getMinFreeHeap() / 1000.0, 1));

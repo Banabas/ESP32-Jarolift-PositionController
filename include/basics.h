@@ -56,5 +56,6 @@ void sendWiFiInfo();
 void sendETHInfo();
 void getUptime(char *buffer, size_t bufferSize);
 void sendSysInfo();
+float getFlashUsagePercent();
 void setupETH();
 void refreshNetworkInfo();

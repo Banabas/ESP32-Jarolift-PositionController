@@ -34,6 +34,30 @@ static const char *TAG = "SETUP"; // LOG TAG
 
 /**
  * *******************************************************************
+ * @brief   flash usage of the running firmware in percent (cached)
+ * @details ESP.getSketchSize() / getFreeSketchSpace() run a complete
+ *          esp_image_verify() of the running image (SHA over ~1.5 MB) on
+ *          every call and use bootloader_mmap(), of which only ONE mapping
+ *          may exist at a time. Called cyclically (MQTT sysinfo every 10 s)
+ *          this blocked the loop and collided with the verification at the
+ *          end of an OTA update ("bootloader_mmap(...) failed" -> "Could Not
+ *          Activate The Firmware"). The values cannot change at runtime,
+ *          so they are determined once.
+ * @param   none
+ * @return  flash usage in %
+ * *******************************************************************/
+float getFlashUsagePercent() {
+  static float usage = -1.0f;
+  if (usage < 0.0f) {
+    uint32_t sketchSize = ESP.getSketchSize();
+    uint32_t freeSpace = ESP.getFreeSketchSpace();
+    usage = (freeSpace > 0) ? (float)sketchSize * 100.0f / freeSpace : 0.0f;
+  }
+  return usage;
+}
+
+/**
+ * *******************************************************************
  * @brief   Setup for NTP Server
  * @param   none
  * @return  none
@@ -276,6 +300,9 @@ void setupETH() {
  * *******************************************************************/
 void basicSetup() {
 
+  // determine flash usage once at startup (verifies the running image)
+  getFlashUsagePercent();
+
   // check internal restart reason
   EspSysUtil::RestartReason::readLocal();
 
@@ -467,7 +494,7 @@ void sendSysInfo() {
   char heap[10];
   snprintf(heap, sizeof(heap), "%.1f %%", (float)(ESP.getHeapSize() - ESP.getFreeHeap()) * 100 / ESP.getHeapSize());
   char flash[10];
-  snprintf(flash, sizeof(flash), "%.1f %%", (float)ESP.getSketchSize() * 100 / ESP.getFreeSketchSpace());
+  snprintf(flash, sizeof(flash), "%.1f %%", getFlashUsagePercent());
 
   JsonDocument sysInfoJSON;
   sysInfoJSON["uptime"] = uptimeStr;
