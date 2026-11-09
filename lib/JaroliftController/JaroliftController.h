@@ -71,6 +71,9 @@ public:
   uint32_t getSerial(uint8_t channel);
   bool getCC1101State();
   uint8_t getRssi();
+  // direct CC1101 register access for tests (telnet "cc1101"), not persistent
+  uint8_t ccReadReg(uint8_t reg);
+  void ccWriteReg(uint8_t reg, uint8_t value);
 
 private:
   // Instanzvariablen (anstatt globaler Variablen)

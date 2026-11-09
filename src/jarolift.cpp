@@ -351,6 +351,8 @@ void jaroCmdReInit() { jaroliftSetup(); };
 void jaroCmdSetDevCnt(uint16_t value) { jarolift.setDeviceCounter(value); };
 uint16_t jaroGetDevCnt() { return jarolift.getDeviceCounter(); };
 bool getCC1101State() { return jarolift.getCC1101State(); };
+uint8_t jaroCcRead(uint8_t reg) { return jarolift.ccReadReg(reg); };
+void jaroCcWrite(uint8_t reg, uint8_t value) { jarolift.ccWriteReg(reg, value); };
 uint8_t getCC1101Rssi() { return jarolift.getRssi(); }
 
 /**

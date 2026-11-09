@@ -31,6 +31,7 @@ void cmdTest(char param[MAX_PAR][MAX_CHAR]);
 void cmdShutter(char param[MAX_PAR][MAX_CHAR]);
 void cmdDeviceCnt(char param[MAX_PAR][MAX_CHAR]);
 void cmdGroup(char param[MAX_PAR][MAX_CHAR]);
+void cmdCC1101(char param[MAX_PAR][MAX_CHAR]);
 
 Command commands[] = {
     {"cls", cmdCls, "Clear screen", ""},
@@ -44,6 +45,7 @@ Command commands[] = {
     {"shutter", cmdShutter, "shutter commands", "channel, up/down/stop/shade"},
     {"group", cmdGroup, "group commands", "group, up/down/stop/shade"},
     {"test", cmdTest, "test commands", "group"},
+    {"cc1101", cmdCC1101, "CC1101 register (hex, not persistent)", "r <reg> | w <reg> <val> | agc"},
 };
 const int commandsCount = sizeof(commands) / sizeof(commands[0]);
 
@@ -239,6 +241,42 @@ void cmdGroup(char param[MAX_PAR][MAX_CHAR]) {
     jaroCmd(CMD_GRP_SHADE, config.jaro.grp_mask[group - 1]);
   } else {
     telnet.println("unknown command");
+  }
+}
+
+/**
+ * *******************************************************************
+ * @brief   telnet command: read/write CC1101 registers (hex), for RX tests
+ *          cc1101 r 1b       -> read AGCCTRL2
+ *          cc1101 w 1d 93    -> write AGCCTRL0 = 0x93 (lost after restart)
+ *          cc1101 agc        -> show AGC/RX related registers and RSSI
+ * @param   params received parameters
+ * @return  none
+ * *******************************************************************/
+void cmdCC1101(char param[MAX_PAR][MAX_CHAR]) {
+  if (!strcmp(param[1], "r") && strlen(param[2]) > 0) {
+    uint8_t reg = (uint8_t)strtoul(param[2], NULL, 16);
+    telnet.printf("CC1101 reg 0x%02X = 0x%02X\n", reg, jaroCcRead(reg));
+  } else if (!strcmp(param[1], "w") && strlen(param[2]) > 0 && strlen(param[3]) > 0) {
+    uint8_t reg = (uint8_t)strtoul(param[2], NULL, 16);
+    uint8_t val = (uint8_t)strtoul(param[3], NULL, 16);
+    if (reg > 0x2E) {
+      telnet.println("only config registers 0x00-0x2E can be written");
+      return;
+    }
+    jaroCcWrite(reg, val);
+    telnet.printf("CC1101 reg 0x%02X <- 0x%02X, read back 0x%02X\n", reg, val, jaroCcRead(reg));
+  } else if (!strcmp(param[1], "agc")) {
+    const uint8_t regs[] = {0x10, 0x1B, 0x1C, 0x1D, 0x21, 0x22};
+    const char *names[] = {"MDMCFG4", "AGCCTRL2", "AGCCTRL1", "AGCCTRL0", "FREND1", "FREND0"};
+    for (int i = 0; i < 6; i++) {
+      telnet.printf("%-9s 0x%02X = 0x%02X\n", names[i], regs[i], jaroCcRead(regs[i]));
+    }
+    uint8_t raw = jaroCcRead(0x34);
+    int rssi = ((raw >= 128) ? ((int)raw - 256) / 2 : (int)raw / 2) - 74;
+    telnet.printf("RSSI      %d dBm, MARCSTATE 0x%02X\n", rssi, jaroCcRead(0x35) & 0x1F);
+  } else {
+    telnet.println("usage: cc1101 r <reg> | cc1101 w <reg> <val> | cc1101 agc   (hex)");
   }
 }
 

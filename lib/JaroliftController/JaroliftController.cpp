@@ -334,6 +334,27 @@ void JaroliftController::enterTx() {
 
 /**
  *******************************************************************
+ * @brief   read a CC1101 register (0x00-0x2E config, 0x30-0x3D status)
+ * *******************************************************************/
+uint8_t JaroliftController::ccReadReg(uint8_t reg) {
+  return (reg >= 0x30) ? cc1101_.readReg(reg, CC1101_STATUS_REGISTER) : cc1101_.readReg(reg, CC1101_CONFIG_REGISTER);
+}
+
+/**
+ *******************************************************************
+ * @brief   write a CC1101 config register (in IDLE, then back to RX)
+ * *******************************************************************/
+void JaroliftController::ccWriteReg(uint8_t reg, uint8_t value) {
+  if (reg > 0x2E)
+    return;
+  cc1101_.cmdStrobe(CC1101_SIDLE);
+  delay(2);
+  cc1101_.writeReg(reg, value);
+  enterRx();
+}
+
+/**
+ *******************************************************************
  * @brief   calculate RSSI value (Received Signal Strength Indicator)
  * @param   none
  * @return  none
