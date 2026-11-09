@@ -435,6 +435,7 @@ void JaroliftController::handleRadioRxMeasure() {
   static unsigned long timeout = 0;
   unsigned long currentMicros = micros();
   int pinState = digitalRead(gpio_.gdo2);
+  rxEdgeCount_++;
   // keep a received telegram until processRxData() has read it - the remote
   // sends one telegram per key press, it must not be overwritten while the
   // main loop is busy (e.g. saving the config)
@@ -942,6 +943,7 @@ void JaroliftController::processRxData() {
     bool keeloqOk = (((decoded >> 16) & 0xFF) == (rxSerial_ & 0xFF));
 
     if (!pulsesOk || !keeloqOk) {
+      rxDiscardCount_++;
       ESP_LOGD(TAG, "RX discarded (%s): serial 0x%08lX", !pulsesOk ? "pulse timing" : "KeeLoq check", (unsigned long)rxSerial_);
       if (!pulsesOk) {
         // diagnostics: sync gap, number of pulses, first failing bit and some
@@ -972,6 +974,8 @@ void JaroliftController::processRxData() {
       rxFunction_ = 0x3;
       steadyCount_ = 0;
     }
+
+    rxOkCount_++;
 
     // build channel information
     uint8_t ch_low = (decoded >> 24) & 0xFF;
@@ -1052,4 +1056,20 @@ void JaroliftController::loop() {
   }
 
   processRxData(); // process received data
+
+  // RX statistics once per minute (debug): number of GDO2 edges, accepted and
+  // discarded telegrams, current RSSI (noise floor if nothing is sent) and
+  // radio state - shows whether disturbances come via RF (RSSI/edges up) or not
+  if (millis() - rxStatMs_ >= 60000) {
+    rxStatMs_ = millis();
+    uint32_t edges = rxEdgeCount_;
+    rxEdgeCount_ = 0;
+    uint8_t raw = cc1101_.readReg(CC1101_RSSI, CC1101_STATUS_REGISTER);
+    int rssiDbm = ((raw >= 128) ? ((int)raw - 256) / 2 : (int)raw / 2) - 74;
+    uint8_t marc = cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F;
+    ESP_LOGD(TAG, "RX stat/min: edges %lu, ok %lu, discarded %lu, RSSI %d dBm, MARC 0x%02X", (unsigned long)edges,
+             (unsigned long)rxOkCount_, (unsigned long)rxDiscardCount_, rssiDbm, marc);
+    rxOkCount_ = 0;
+    rxDiscardCount_ = 0;
+  }
 }

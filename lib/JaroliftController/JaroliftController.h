@@ -144,6 +144,11 @@ private:
   size_t txSymbolCount_;
   bool txHalfUsed_;
   bool rmtOK_;
+  // RX statistics (debug log once per minute)
+  volatile uint32_t rxEdgeCount_ = 0;
+  uint32_t rxOkCount_ = 0;
+  uint32_t rxDiscardCount_ = 0;
+  uint32_t rxStatMs_ = 0;
   void initRmt();
   void txAddLevel(uint8_t level, uint16_t durationUs);
   void radioTxFrame(int length);
