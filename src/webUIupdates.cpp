@@ -370,16 +370,32 @@ void webReadLogBuffer() {
  * @return  none
  * *******************************************************************/
 void webReadLogBufferCyclic() {
-  if (logData.buffer == nullptr) return;
+  if (logData.buffer == nullptr) {
+    logReadActive = false;
+    return;
+  }
+
+  // The log is sent in small packets (kLogChunkLines per packet, one packet every
+  // kLogChunkPauseMs). Sending the whole buffer (up to ~40 KB) as one websocket
+  // message needed a lot of heap and filled the websocket queue - the connection
+  // to the browser was closed ("web-client disconnected").
+  static const int kLogChunkLines = 20;
+  static const uint32_t kLogChunkPauseMs = 100;
+  static uint32_t lastChunkMs = 0;
+  if (logLine != 0 && millis() - lastChunkMs < kLogChunkPauseMs)
+    return;
+  lastChunkMs = millis();
 
   jsonLog.clear();
   jsonLog["type"] = "logger";
-  jsonLog["cmd"] = "add_log";
+  // first packet replaces the log view, following packets are appended
+  jsonLog["cmd"] = (logLine == 0) ? "add_log" : "app_log";
   JsonArray entryArray = jsonLog["entry"].to<JsonArray>();
+  int count = 0;
 
   while (logReadActive) {
 
-    if (logLine == 0 && logData.lastLine == 0) {
+    if (logLine == 0 && logData.lastLine == 0 && logData.buffer[0][0] == '\0') {
       // log empty
       logReadActive = false;
       return;
@@ -401,21 +417,17 @@ void webReadLogBufferCyclic() {
     if (logIdx >= MAX_LOG_LINES) {
       logIdx = 0;
     }
-    if (logLine == MAX_LOG_LINES - 1) {
-      // end
-      webUI.wsUpdateWebJSON(jsonLog);
+    if (logLine >= MAX_LOG_LINES - 1 || logData.buffer[logIdx][0] == '\0') {
+      // end of buffer / no more entries
       logReadActive = false;
+      webUI.wsUpdateWebJSON(jsonLog);
       return;
-    } else {
-      if (logData.buffer[logIdx][0] != '\0') {
-        entryArray.add(logData.buffer[logIdx]);
-        logLine++;
-      } else {
-        // no more entries
-        logReadActive = false;
-        webUI.wsUpdateWebJSON(jsonLog);
-        return;
-      }
+    }
+    entryArray.add(logData.buffer[logIdx]);
+    logLine++;
+    if (++count >= kLogChunkLines) {
+      webUI.wsUpdateWebJSON(jsonLog); // send packet, continue in next cycle
+      return;
     }
   }
 }
