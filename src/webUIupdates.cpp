@@ -22,7 +22,9 @@ void updateSystemInfoElements();
 static muTimer refreshTimer1 = muTimer();   // timer to refresh other values
 static muTimer refreshTimer2 = muTimer();   // timer to refresh other values
 static muTimer otaProgessTimer = muTimer(); // timer to refresh other values
-static muTimer timerSendTimer = muTimer();  // paces the timer field packets
+static muTimer timerSendTimer = muTimer();
+static muTimer posUpdateTimer = muTimer();   // live update of the position sliders
+static int8_t lastSentPos[16] = {-2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2};  // paces the timer field packets
 
 static char tmpMessage[300] = {'\0'};
 static bool refreshRequest = false;
@@ -535,6 +537,40 @@ void processGitHubUpdate() {
 
 /**
  * *******************************************************************
+ * @brief   live update of the position sliders (only changed values)
+ * @details positions change by RF commands, timers, MQTT/HA or the
+ *          remote control; without this the page showed the old value
+ *          until it was reloaded
+ * @param   none
+ * @return  none
+ * *******************************************************************/
+static void updatePositionElements() {
+  JsonDocument posDoc;
+  webUI.initJsonBuffer(posDoc);
+  bool changed = false;
+  for (int i = 0; i < 16; i++) {
+    if (!config.jaro.ch_enable[i])
+      continue;
+    int8_t pos = shutterPosGet(i);
+    if (pos < 0 || pos == lastSentPos[i])
+      continue;
+    lastSentPos[i] = pos;
+    char id[16];
+    char txt[8];
+    snprintf(id, sizeof(id), "p01_pos_%d", i);
+    webUI.addJson(posDoc, id, (int)pos);
+    snprintf(id, sizeof(id), "pos_lbl_%d", i);
+    snprintf(txt, sizeof(txt), "%d%%", pos);
+    webUI.addJson(posDoc, id, txt);
+    changed = true;
+  }
+  if (changed) {
+    webUI.wsUpdateWebJSON(posDoc);
+  }
+}
+
+/**
+ * *******************************************************************
  * @brief   cyclic update of webUI elements
  * @param   none
  * @return  none
@@ -555,8 +591,13 @@ void webUIupdates() {
   if (refreshTimer1.cycleTrigger(WEBUI_FAST_REFRESH_TIME_MS) && refreshRequest && !ota.isActive()) {
 
     updateSystemInfoElementsStatic(); // update static informations
+    memset(lastSentPos, -2, sizeof(lastSentPos)); // resend live positions after browser refresh
     updateTimerElements();              // start sending timer fields (one packet per cycle)
     refreshRequest = false;
+  }
+
+  if (posUpdateTimer.cycleTrigger(500) && !refreshRequest && !ota.isActive()) {
+    updatePositionElements();
   }
 
   if (timerSendTimer.cycleTrigger(50) && !ota.isActive()) {
