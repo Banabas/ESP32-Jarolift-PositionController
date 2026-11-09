@@ -498,3 +498,26 @@ function updateSliderFromServer(ch, pos) {
 loadSimulatedData();
 setupBitmaskDialog();
 
+// ============================================================
+//  Logger (overrides logger() from lib.js)
+//  The log is transferred in several packets:
+//  add_log = first packet (replace view), app_log = further packets (append)
+// ============================================================
+function logger(data) {
+  var logOutput = document.getElementById("p10_log_output");
+  if (!logOutput) return;
+  if (data.cmd === "add_log" || data.cmd === "app_log") {
+    var html = "";
+    data.entry.forEach(function (entry) {
+      html += entry + "<br>";
+    });
+    if (data.cmd === "add_log") {
+      logOutput.innerHTML = html;
+    } else {
+      logOutput.insertAdjacentHTML("beforeend", html);
+    }
+  } else if (data.cmd === "clr_log") {
+    logOutput.innerHTML = "";
+  }
+}
+

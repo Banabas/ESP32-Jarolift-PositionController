@@ -71,6 +71,9 @@ public:
   uint32_t getSerial(uint8_t channel);
   bool getCC1101State();
   uint8_t getRssi();
+  // direct CC1101 register access for tests (telnet "cc1101"), not persistent
+  uint8_t ccReadReg(uint8_t reg);
+  void ccWriteReg(uint8_t reg, uint8_t value);
 
 private:
   // Instanzvariablen (anstatt globaler Variablen)
@@ -118,6 +121,8 @@ private:
   // Konstanten
   static constexpr int kLowPulse = 400; // in µs
   static constexpr int kHighPulse = 800;
+  static constexpr int kTxRepeat = 5;     // repetitions for UP/DOWN (same counter -> executed once)
+  static constexpr int kTxRepeatStop = 2; // STOP unchanged: a held STOP is a command of its own (shade)
   static constexpr int kDebounce = 200;
   static constexpr uint8_t kSyncWord = 199;
 
@@ -135,6 +140,20 @@ private:
   // Hilfsfunktionen
   void updateDeviceCounter(bool increment);
 
+  // TX via RMT (hardware timing, independent of WiFi/task interrupts)
+  static constexpr uint32_t kRmtResolutionHz = 1000000; // 1 tick = 1 µs
+  static constexpr size_t kMaxTxSymbols = 96;           // telegram needs 86 symbols
+  rmt_data_t txSymbols_[kMaxTxSymbols];
+  size_t txSymbolCount_;
+  bool txHalfUsed_;
+  bool rmtOK_;
+  // RX statistics (debug log once per minute)
+  volatile uint32_t rxEdgeCount_ = 0;
+  uint32_t rxOkCount_ = 0;
+  uint32_t rxDiscardCount_ = 0;
+  uint32_t rxStatMs_ = 0;
+  void initRmt();
+  void txAddLevel(uint8_t level, uint16_t durationUs);
   void radioTxFrame(int length);
   void radioTxGroupH();
   void radioTx(int repetitions);

@@ -1,12 +1,13 @@
 // JaroliftController.cpp
 #include "JaroliftController.h"
+#include "esp32-hal-periman.h"
 
 // Definition of the static instance pointer
 JaroliftController *JaroliftController::instance_ = nullptr;
 
 JaroliftController::JaroliftController()
     : devCount_(0), deviceKeyMSB_(0), deviceKeyLSB_(0), button_(0), discL_(0), discH_(0), disc_(0), newSerial_(0), encrypted_(0), pack_(0),
-      pbWrite_(0), frameReady_(false), rxSerial_(0), rxHopCode_(0), rxFunction_(0), rxDiscH_(0), initOK_(false), steadyCount_(0), rxDataReady_(false) {
+      pbWrite_(0), frameReady_(false), rxSerial_(0), rxHopCode_(0), rxFunction_(0), rxDiscH_(0), initOK_(false), steadyCount_(0), rxDataReady_(false), txSymbolCount_(0), txHalfUsed_(false), rmtOK_(false) {
 
   memset((void *)lowBuf_, 0, sizeof(lowBuf_));
   memset((void *)hiBuf_, 0, sizeof(hiBuf_));
@@ -166,16 +167,60 @@ void JaroliftController::updateDeviceCounter(bool increment) {
 
 /**
  *******************************************************************
+ * @brief   attach the RMT TX channel to GDO0
+ * @param   none
+ * @return  none
+ * *******************************************************************/
+void JaroliftController::initRmt() {
+  rmtOK_ = rmtInit(gpio_.gdo0, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_2, kRmtResolutionHz);
+  if (rmtOK_) {
+    rmtSetEOT(gpio_.gdo0, HIGH); // idle level after each telegram = carrier off
+    rmt_data_t idle = {1, HIGH, 1, HIGH};
+    rmtWrite(gpio_.gdo0, &idle, 1, RMT_WAIT_FOR_EVER); // set line to idle level
+    ESP_LOGI(TAG, "RMT TX ready on GDO0 (GPIO %d)", gpio_.gdo0);
+  } else {
+    ESP_LOGE(TAG, "RMT init on GDO0 (GPIO %d) failed", gpio_.gdo0);
+  }
+}
+
+/**
+ *******************************************************************
+ * @brief   append one level segment to the RMT symbol buffer
+ * @details the CC1101 is in asynchronous TX mode: GDO0 LOW = carrier on
+ *          (PATABLE[0]), GDO0 HIGH = carrier off (PATABLE[1])
+ * @param   level, durationUs
+ * @return  none
+ * *******************************************************************/
+void JaroliftController::txAddLevel(uint8_t level, uint16_t durationUs) {
+  if (txSymbolCount_ >= kMaxTxSymbols) {
+    ESP_LOGE(TAG, "RMT symbol buffer overflow");
+    return;
+  }
+  rmt_data_t &sym = txSymbols_[txSymbolCount_];
+  if (!txHalfUsed_) {
+    sym.level0 = level;
+    sym.duration0 = durationUs;
+    sym.level1 = level; // placeholder, completed by the next segment
+    sym.duration1 = 0;
+    txHalfUsed_ = true;
+  } else {
+    sym.level1 = level;
+    sym.duration1 = durationUs;
+    txHalfUsed_ = false;
+    txSymbolCount_++;
+  }
+}
+
+/**
+ *******************************************************************
  * @brief   Generates sync-pulses (protocoll start)
  * @param   length
  * @return  none
  * *******************************************************************/
 void JaroliftController::radioTxFrame(int length) {
   for (int i = 0; i < length; ++i) {
-    digitalWrite(gpio_.gdo0, LOW);
-    delayMicroseconds(400);
-    digitalWrite(gpio_.gdo0, HIGH);
-    delayMicroseconds(380);
+    txAddLevel(LOW, 400);
+    txAddLevel(HIGH, 380);
   }
 }
 
@@ -189,15 +234,11 @@ void JaroliftController::radioTxGroupH() {
   for (int i = 0; i < 8; i++) {
     int bitVal = (discH_ >> i) & 0x1;
     if (bitVal == 1) {
-      digitalWrite(gpio_.gdo0, LOW);
-      delayMicroseconds(kLowPulse);
-      digitalWrite(gpio_.gdo0, HIGH);
-      delayMicroseconds(kHighPulse);
+      txAddLevel(LOW, kLowPulse);
+      txAddLevel(HIGH, kHighPulse);
     } else {
-      digitalWrite(gpio_.gdo0, LOW);
-      delayMicroseconds(kHighPulse);
-      digitalWrite(gpio_.gdo0, HIGH);
-      delayMicroseconds(kLowPulse);
+      txAddLevel(LOW, kHighPulse);
+      txAddLevel(HIGH, kLowPulse);
     }
   }
 }
@@ -205,33 +246,56 @@ void JaroliftController::radioTxGroupH() {
 /**
  *******************************************************************
  * @brief   tx routine to send data
+ * @details The complete telegram is built as RMT symbols and output by
+ *          the RMT peripheral. The pulse timing is therefore exact even
+ *          on single core chips (ESP32-S2) where WiFi interrupts used to
+ *          stretch the software delays and corrupt the telegram.
  * @param   repetitions
  * @return  none
  * *******************************************************************/
 void JaroliftController::radioTx(int repetitions) {
   pack_ = (button_ << 60) | (newSerial_ << 32) | encrypted_;
-  for (int a = 0; a < repetitions; a++) {
-    digitalWrite(gpio_.gdo0, LOW);
-    delayMicroseconds(1150);
-    radioTxFrame(13);
-    delayMicroseconds(3500);
-    for (int i = 0; i < 64; i++) {
-      int bitVal = (pack_ >> i) & 0x1;
-      if (bitVal == 1) {
-        digitalWrite(gpio_.gdo0, LOW);
-        delayMicroseconds(kLowPulse);
-        digitalWrite(gpio_.gdo0, HIGH);
-        delayMicroseconds(kHighPulse);
-      } else {
-        digitalWrite(gpio_.gdo0, LOW);
-        delayMicroseconds(kHighPulse);
-        digitalWrite(gpio_.gdo0, HIGH);
-        delayMicroseconds(kLowPulse);
-      }
-    }
-    radioTxGroupH();
-    delay(16);
+  if (perimanGetPinBusType(gpio_.gdo0) != ESP32_BUS_TYPE_RMT_TX) {
+    ESP_LOGW(TAG, "GDO0 (GPIO %d) is no longer attached to RMT (bus type %d) - re-init", gpio_.gdo0, (int)perimanGetPinBusType(gpio_.gdo0));
+    initRmt();
   }
+  if (!rmtOK_) {
+    ESP_LOGE(TAG, "RMT not initialized - telegram not sent");
+    return;
+  }
+
+  // build telegram once
+  txSymbolCount_ = 0;
+  txHalfUsed_ = false;
+  txAddLevel(LOW, 1150);
+  radioTxFrame(13);
+  txAddLevel(HIGH, 3500);
+  for (int i = 0; i < 64; i++) {
+    int bitVal = (pack_ >> i) & 0x1;
+    if (bitVal == 1) {
+      txAddLevel(LOW, kLowPulse);
+      txAddLevel(HIGH, kHighPulse);
+    } else {
+      txAddLevel(LOW, kHighPulse);
+      txAddLevel(HIGH, kLowPulse);
+    }
+  }
+  radioTxGroupH();
+  if (txHalfUsed_) { // odd number of segments: close last symbol with idle level
+    txAddLevel(HIGH, 1);
+  }
+
+  int okCount = 0;
+  for (int a = 0; a < repetitions; a++) {
+    if (rmtWrite(gpio_.gdo0, txSymbols_, txSymbolCount_, RMT_WAIT_FOR_EVER)) {
+      okCount++;
+    } else {
+      ESP_LOGE(TAG, "rmtWrite failed");
+    }
+    delay(16); // pause between repetitions, line stays HIGH (carrier off)
+  }
+  ESP_LOGI(TAG, "TX via RMT: %u symbols, %d/%d repetitions sent, MARCSTATE 0x%02X", (unsigned)txSymbolCount_, okCount, repetitions,
+           cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F);
 }
 
 /**
@@ -266,6 +330,27 @@ void JaroliftController::enterTx() {
     if (micros() - startTime > 50000)
       break;
   }
+}
+
+/**
+ *******************************************************************
+ * @brief   read a CC1101 register (0x00-0x2E config, 0x30-0x3D status)
+ * *******************************************************************/
+uint8_t JaroliftController::ccReadReg(uint8_t reg) {
+  return (reg >= 0x30) ? cc1101_.readReg(reg, CC1101_STATUS_REGISTER) : cc1101_.readReg(reg, CC1101_CONFIG_REGISTER);
+}
+
+/**
+ *******************************************************************
+ * @brief   write a CC1101 config register (in IDLE, then back to RX)
+ * *******************************************************************/
+void JaroliftController::ccWriteReg(uint8_t reg, uint8_t value) {
+  if (reg > 0x2E)
+    return;
+  cc1101_.cmdStrobe(CC1101_SIDLE);
+  delay(2);
+  cc1101_.writeReg(reg, value);
+  enterRx();
 }
 
 /**
@@ -371,6 +456,7 @@ void JaroliftController::handleRadioRxMeasure() {
   static unsigned long timeout = 0;
   unsigned long currentMicros = micros();
   int pinState = digitalRead(gpio_.gdo2);
+  rxEdgeCount_++;
   // keep a received telegram until processRxData() has read it - the remote
   // sends one telegram per key press, it must not be overwritten while the
   // main loop is busy (e.g. saving the config)
@@ -447,7 +533,7 @@ void JaroliftController::cmdChannel(commands cmd, uint8_t channel) {
     generateKey();
     generateEncrypted();
     enterTx();
-    radioTx(2); // send command 2-times with same devCnt
+    radioTx(kTxRepeat); // send command kTxRepeat-times with same devCnt
     enterRx();
     updateDeviceCounter(true);
     break;
@@ -460,7 +546,7 @@ void JaroliftController::cmdChannel(commands cmd, uint8_t channel) {
     generateKey();
     generateEncrypted();
     enterTx();
-    radioTx(2); // send command 2-times with same devCnt
+    radioTx(kTxRepeat); // send command kTxRepeat-times with same devCnt
     enterRx();
     updateDeviceCounter(true);
     break;
@@ -473,7 +559,7 @@ void JaroliftController::cmdChannel(commands cmd, uint8_t channel) {
     generateKey();
     generateEncrypted();
     enterTx();
-    radioTx(2); // send command 2-times
+    radioTx(kTxRepeatStop); // STOP only 2-times: repeated STOP = "continuous STOP" (shade)
     enterRx();
     updateDeviceCounter(true);
     break;
@@ -551,8 +637,10 @@ void JaroliftController::cmdGroup(commands cmd, uint16_t groupMask) {
   enterTx();
   if (cmd == CMD_SHADE) {
     radioTx(20); // send "continuos STOP"
+  } else if (cmd == CMD_STOP) {
+    radioTx(kTxRepeatStop); // STOP only 2-times: repeated STOP = "continuous STOP" (shade)
   } else {
-    radioTx(2); // send command 2-times
+    radioTx(kTxRepeat); // send command kTxRepeat-times with same devCnt
   }
 
   enterRx();
@@ -852,8 +940,53 @@ void JaroliftController::processRxData() {
         rxDiscH_ |= (1 << i);
     }
 
+    // plausibility check 1: every bit = one LOW + one HIGH pulse of 400/800 us,
+    // period ~1200 us. Random noise (AGC of the receiver amplifies noise when
+    // no transmitter is active) occasionally looks like a sync pulse and is
+    // then "decoded" into garbage.
+    bool pulsesOk = true;
+    unsigned int badIdx = 0;
+    for (unsigned int i = 1; i <= 64 && i < len; i++) {
+      unsigned long period = lowBuf_[i] + hiBuf_[i];
+      if (lowBuf_[i] < 300 || hiBuf_[i] < 300 || period < 900 || period > 1500) {
+        pulsesOk = false;
+        badIdx = i;
+        break;
+      }
+    }
+
     rxKeyGen();
     uint32_t decoded = rxDecode();
+
+    // plausibility check 2 (KeeLoq): the decrypted hopcode contains the low
+    // byte of the serial number in bits 16-23. Valid only for genuine telegrams
+    // with the configured manufacturer key; noise matches with 1/256.
+    bool keeloqOk = (((decoded >> 16) & 0xFF) == (rxSerial_ & 0xFF));
+
+    if (!pulsesOk || !keeloqOk) {
+      rxDiscardCount_++;
+      ESP_LOGD(TAG, "RX discarded (%s): serial 0x%08lX", !pulsesOk ? "pulse timing" : "KeeLoq check", (unsigned long)rxSerial_);
+      if (!pulsesOk) {
+        // diagnostics: sync gap, number of pulses, first failing bit and some
+        // HIGH/LOW pairs in us (HIGH = carrier on) to identify the source
+        // log entries are limited to 128 characters incl. timestamp - keep it short
+        char pulses[40];
+        int pos = 0;
+        for (unsigned int i = 1; i <= 4 && i < len && pos < (int)sizeof(pulses) - 11; i++) {
+          pos += snprintf(pulses + pos, sizeof(pulses) - pos, " %u/%u", hiBuf_[i], lowBuf_[i]);
+        }
+        ESP_LOGD(TAG, "RX diag: sync %u, %u p, bit %u %u/%u, H/L%s", lowBuf_[0], len, badIdx - 1, hiBuf_[badIdx], lowBuf_[badIdx], pulses);
+      }
+      rxDiscH_ = 0;
+      rxHopCode_ = 0;
+      rxFunction_ = 0;
+      memset((void *)lowBuf_, 0, sizeof(lowBuf_));
+      memset((void *)hiBuf_, 0, sizeof(hiBuf_));
+      pbWrite_ = 0;
+      frameReady_ = false;
+      return;
+    }
+
     if (rxFunction_ == 0x4)
       steadyCount_++;
     else
@@ -862,6 +995,8 @@ void JaroliftController::processRxData() {
       rxFunction_ = 0x3;
       steadyCount_ = 0;
     }
+
+    rxOkCount_++;
 
     // build channel information
     uint8_t ch_low = (decoded >> 24) & 0xFF;
@@ -896,6 +1031,11 @@ void JaroliftController::begin() {
   devCount_ = getDeviceCounter();
 
   cc1101_.setGPIO(gpio_.sck, gpio_.miso, gpio_.mosi, gpio_.cs, gpio_.gdo0);
+  // TX power must be set BEFORE init(): init() writes paTableByte into PATABLE[0]
+  // (single access, exactly like before). A later setTxPowerAmp() has no effect.
+  // Note: CS of the CC1101 is held LOW permanently (SPI.begin() does not drive it),
+  // so burst accesses are never terminated - do not use writeBurstReg().
+  cc1101_.setTxPowerAmp(PA_LongDistance);
   if (!cc1101_.init()) {
     ESP_LOGE(TAG, "Initialisation of the CC1101 module aborted!");
     return;
@@ -903,9 +1043,9 @@ void JaroliftController::begin() {
   cc1101_.setSyncWord(kSyncWord, false);
   cc1101_.setCarrierFreq(CFREQ_433);
   cc1101_.disableAddressCheck();
-  cc1101_.setTxPowerAmp(PA_LongDistance);
 
-  pinMode(gpio_.gdo0, OUTPUT);
+  // GDO0 is driven by the RMT peripheral (exact pulse timing)
+  initRmt();
   pinMode(gpio_.gdo2, INPUT_PULLUP);
   attachInterrupt(gpio_.gdo2, radioRxMeasureISR, CHANGE);
 
@@ -937,4 +1077,20 @@ void JaroliftController::loop() {
   }
 
   processRxData(); // process received data
+
+  // RX statistics once per minute (debug): number of GDO2 edges, accepted and
+  // discarded telegrams, current RSSI (noise floor if nothing is sent) and
+  // radio state - shows whether disturbances come via RF (RSSI/edges up) or not
+  if (millis() - rxStatMs_ >= 60000) {
+    rxStatMs_ = millis();
+    uint32_t edges = rxEdgeCount_;
+    rxEdgeCount_ = 0;
+    uint8_t raw = cc1101_.readReg(CC1101_RSSI, CC1101_STATUS_REGISTER);
+    int rssiDbm = ((raw >= 128) ? ((int)raw - 256) / 2 : (int)raw / 2) - 74;
+    uint8_t marc = cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F;
+    ESP_LOGD(TAG, "RX stat/min: edges %lu, ok %lu, discarded %lu, RSSI %d dBm, MARC 0x%02X", (unsigned long)edges,
+             (unsigned long)rxOkCount_, (unsigned long)rxDiscardCount_, rssiDbm, marc);
+    rxOkCount_ = 0;
+    rxDiscardCount_ = 0;
+  }
 }

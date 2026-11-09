@@ -9,7 +9,7 @@ struct s_telnetIF {
   bool serialStream;
 };
 
-const int MAX_PAR = 3;
+const int MAX_PAR = 4;
 const int MAX_CHAR = 64;
 
 struct Command {

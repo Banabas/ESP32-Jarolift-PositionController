@@ -24,7 +24,37 @@ s_espInfo espInfo;
 
 static muTimer wifiReconnectTimer = muTimer(); // timer for reconnect delay
 static int wifi_retry = 0;
+
+// periodic roaming (similar to Tasmota SetOption57): rescan and switch to a clearly stronger AP
+static const uint32_t WIFI_ROAM_INTERVAL = 30UL * 60UL * 1000UL; // scan every 30 minutes
+static const int WIFI_ROAM_MIN_GAIN = 8;                          // switch only if >= 8 dB stronger
+static uint32_t wifiRoamLastScan = 0;
+static bool wifiRoamScanRunning = false;
 static const char *TAG = "SETUP"; // LOG TAG
+
+/**
+ * *******************************************************************
+ * @brief   flash usage of the running firmware in percent (cached)
+ * @details ESP.getSketchSize() / getFreeSketchSpace() run a complete
+ *          esp_image_verify() of the running image (SHA over ~1.5 MB) on
+ *          every call and use bootloader_mmap(), of which only ONE mapping
+ *          may exist at a time. Called cyclically (MQTT sysinfo every 10 s)
+ *          this blocked the loop and collided with the verification at the
+ *          end of an OTA update ("bootloader_mmap(...) failed" -> "Could Not
+ *          Activate The Firmware"). The values cannot change at runtime,
+ *          so they are determined once.
+ * @param   none
+ * @return  flash usage in %
+ * *******************************************************************/
+float getFlashUsagePercent() {
+  static float usage = -1.0f;
+  if (usage < 0.0f) {
+    uint32_t sketchSize = ESP.getSketchSize();
+    uint32_t freeSpace = ESP.getFreeSketchSpace();
+    usage = (freeSpace > 0) ? (float)sketchSize * 100.0f / freeSpace : 0.0f;
+  }
+  return usage;
+}
 
 /**
  * *******************************************************************
@@ -72,7 +102,85 @@ void onWiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
   ESP_LOGI(TAG, "WiFi connected");
   snprintf(wifi.ipAddress, sizeof(wifi.ipAddress), "%s", WiFi.localIP().toString().c_str());
   ESP_LOGI(TAG, "IP address: %s", wifi.ipAddress);
+  ESP_LOGI(TAG, "WiFi AP: BSSID %s | channel %d | RSSI %d dBm", WiFi.BSSIDstr().c_str(), (int)WiFi.channel(), (int)WiFi.RSSI());
   wifi.connected = true;
+}
+
+/**
+ * *******************************************************************
+ * @brief   periodic check for a stronger access point of the same SSID
+ *          (mesh / repeater) and switch to it if clearly better
+ * @param   none
+ * @return  none
+ * *******************************************************************/
+static void checkWiFiRoaming() {
+  if (!wifi.connected || eth.connected) {
+    wifiRoamScanRunning = false;
+    wifiRoamLastScan = millis(); // restart interval after (re)connect
+    return;
+  }
+
+  if (!wifiRoamScanRunning) {
+    if (millis() - wifiRoamLastScan < WIFI_ROAM_INTERVAL)
+      return;
+    // asynchronous scan for our SSID on all channels
+    if (WiFi.scanNetworks(true, false, false, 300, 0, config.wifi.ssid) == WIFI_SCAN_FAILED) {
+      ESP_LOGW(TAG, "WiFi roaming: scan could not be started");
+      wifiRoamLastScan = millis();
+      return;
+    }
+    wifiRoamScanRunning = true;
+    return;
+  }
+
+  int16_t n = WiFi.scanComplete();
+  if (n == WIFI_SCAN_RUNNING)
+    return;
+
+  wifiRoamScanRunning = false;
+  wifiRoamLastScan = millis();
+  if (n <= 0) {
+    WiFi.scanDelete();
+    return;
+  }
+
+  // compare scan values with scan values (same measurement method);
+  // the live RSSI of the connection is only used if our AP is missing in the scan
+  const int liveRssi = WiFi.RSSI();
+  const String currentBssid = WiFi.BSSIDstr();
+  int currentScanRssi = liveRssi;
+  int bestOther = -1; // strongest OTHER access point with our SSID
+  for (int i = 0; i < n; i++) {
+    if (WiFi.SSID(i) != String(config.wifi.ssid))
+      continue;
+    if (WiFi.BSSIDstr(i) == currentBssid) {
+      currentScanRssi = WiFi.RSSI(i);
+      continue;
+    }
+    if (bestOther < 0 || WiFi.RSSI(i) > WiFi.RSSI(bestOther))
+      bestOther = i;
+  }
+
+  // switch only if the other AP is at least WIFI_ROAM_MIN_GAIN dB STRONGER
+  // (e.g. current -70 dBm, other -60 dBm -> switch; other -78 dBm -> stay)
+  if (bestOther >= 0 && WiFi.RSSI(bestOther) >= currentScanRssi + WIFI_ROAM_MIN_GAIN) {
+    uint8_t bssid[6];
+    memcpy(bssid, WiFi.BSSID(bestOther), 6);
+    int32_t channel = WiFi.channel(bestOther);
+    // log entries are limited to 128 characters incl. timestamp - keep it short
+    ESP_LOGI(TAG, "WiFi roam: switch %s %d -> %s %d dBm ch%d", currentBssid.c_str(), currentScanRssi, WiFi.BSSIDstr(bestOther).c_str(),
+             (int)WiFi.RSSI(bestOther), (int)channel);
+    WiFi.scanDelete();
+    WiFi.begin(config.wifi.ssid, config.wifi.password, channel, bssid, true);
+  } else {
+    if (bestOther >= 0) {
+      ESP_LOGD(TAG, "WiFi roam: stay %s %d/%d, other %s %d dBm (<+%d)", currentBssid.c_str(), currentScanRssi, liveRssi,
+               WiFi.BSSIDstr(bestOther).c_str(), (int)WiFi.RSSI(bestOther), WIFI_ROAM_MIN_GAIN);
+    } else {
+      ESP_LOGD(TAG, "WiFi roam: stay %s %d/%d dBm, no other AP", currentBssid.c_str(), currentScanRssi, liveRssi);
+    }
+    WiFi.scanDelete();
+  }
 }
 
 /**
@@ -90,10 +198,16 @@ void checkWiFi() {
     wifi_retry++;
     WiFi.disconnect();
     WiFi.mode(WIFI_STA);
+    // mesh (e.g. FRITZ!Repeater): scan all channels and connect to the strongest AP
+    // instead of the first one found
+    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+    WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
     WiFi.begin(config.wifi.ssid, config.wifi.password);
     ESP_LOGI(TAG, "WiFi Mode STA - Trying connect to: %s", config.wifi.ssid);
     ESP_LOGI(TAG, "WiFi connection - attempt: %i", wifi_retry);
   }
+
+  checkWiFiRoaming();
 }
 
 /**
@@ -125,6 +239,10 @@ void setupWiFi() {
     // connect to configured wifi AP
     WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(true);
+    // mesh (e.g. FRITZ!Repeater): scan all channels and connect to the strongest AP
+    // instead of the first one found
+    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+    WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
     WiFi.begin(config.wifi.ssid, config.wifi.password);
     WiFi.hostname(config.wifi.hostname);
     MDNS.begin(config.wifi.hostname);
@@ -195,6 +313,9 @@ void setupETH() {
  * @return  none
  * *******************************************************************/
 void basicSetup() {
+
+  // determine flash usage once at startup (verifies the running image)
+  getFlashUsagePercent();
 
   // check internal restart reason
   EspSysUtil::RestartReason::readLocal();
@@ -387,7 +508,7 @@ void sendSysInfo() {
   char heap[10];
   snprintf(heap, sizeof(heap), "%.1f %%", (float)(ESP.getHeapSize() - ESP.getFreeHeap()) * 100 / ESP.getHeapSize());
   char flash[10];
-  snprintf(flash, sizeof(flash), "%.1f %%", (float)ESP.getSketchSize() * 100 / ESP.getFreeSketchSpace());
+  snprintf(flash, sizeof(flash), "%.1f %%", getFlashUsagePercent());
 
   JsonDocument sysInfoJSON;
   sysInfoJSON["uptime"] = uptimeStr;

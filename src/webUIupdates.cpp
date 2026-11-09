@@ -22,7 +22,9 @@ void updateSystemInfoElements();
 static muTimer refreshTimer1 = muTimer();   // timer to refresh other values
 static muTimer refreshTimer2 = muTimer();   // timer to refresh other values
 static muTimer otaProgessTimer = muTimer(); // timer to refresh other values
-static muTimer timerSendTimer = muTimer();  // paces the timer field packets
+static muTimer timerSendTimer = muTimer();
+static muTimer posUpdateTimer = muTimer();   // live update of the position sliders
+static int8_t lastSentPos[16] = {-2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2};  // paces the timer field packets
 
 static char tmpMessage[300] = {'\0'};
 static bool refreshRequest = false;
@@ -131,7 +133,7 @@ void updateSystemInfoElements() {
   }
 
   // ESP informations
-  webUI.addJson(jsonDoc, "p09_esp_flash_usage", ESP.getSketchSize() * 100.0f / ESP.getFreeSketchSpace());
+  webUI.addJson(jsonDoc, "p09_esp_flash_usage", getFlashUsagePercent());
   webUI.addJson(jsonDoc, "p09_esp_heap_usage", (ESP.getHeapSize() - ESP.getFreeHeap()) * 100.0f / ESP.getHeapSize());
   webUI.addJson(jsonDoc, "p09_esp_maxallocheap", ESP.getMaxAllocHeap() / 1000.0f);
   webUI.addJson(jsonDoc, "p09_esp_minfreeheap", ESP.getMinFreeHeap() / 1000.0f);
@@ -370,16 +372,32 @@ void webReadLogBuffer() {
  * @return  none
  * *******************************************************************/
 void webReadLogBufferCyclic() {
-  if (logData.buffer == nullptr) return;
+  if (logData.buffer == nullptr) {
+    logReadActive = false;
+    return;
+  }
+
+  // The log is sent in small packets (kLogChunkLines per packet, one packet every
+  // kLogChunkPauseMs). Sending the whole buffer (up to ~40 KB) as one websocket
+  // message needed a lot of heap and filled the websocket queue - the connection
+  // to the browser was closed ("web-client disconnected").
+  static const int kLogChunkLines = 20;
+  static const uint32_t kLogChunkPauseMs = 100;
+  static uint32_t lastChunkMs = 0;
+  if (logLine != 0 && millis() - lastChunkMs < kLogChunkPauseMs)
+    return;
+  lastChunkMs = millis();
 
   jsonLog.clear();
   jsonLog["type"] = "logger";
-  jsonLog["cmd"] = "add_log";
+  // first packet replaces the log view, following packets are appended
+  jsonLog["cmd"] = (logLine == 0) ? "add_log" : "app_log";
   JsonArray entryArray = jsonLog["entry"].to<JsonArray>();
+  int count = 0;
 
   while (logReadActive) {
 
-    if (logLine == 0 && logData.lastLine == 0) {
+    if (logLine == 0 && logData.lastLine == 0 && logData.buffer[0][0] == '\0') {
       // log empty
       logReadActive = false;
       return;
@@ -401,21 +419,17 @@ void webReadLogBufferCyclic() {
     if (logIdx >= MAX_LOG_LINES) {
       logIdx = 0;
     }
-    if (logLine == MAX_LOG_LINES - 1) {
-      // end
-      webUI.wsUpdateWebJSON(jsonLog);
+    if (logLine >= MAX_LOG_LINES - 1 || logData.buffer[logIdx][0] == '\0') {
+      // end of buffer / no more entries
       logReadActive = false;
+      webUI.wsUpdateWebJSON(jsonLog);
       return;
-    } else {
-      if (logData.buffer[logIdx][0] != '\0') {
-        entryArray.add(logData.buffer[logIdx]);
-        logLine++;
-      } else {
-        // no more entries
-        logReadActive = false;
-        webUI.wsUpdateWebJSON(jsonLog);
-        return;
-      }
+    }
+    entryArray.add(logData.buffer[logIdx]);
+    logLine++;
+    if (++count >= kLogChunkLines) {
+      webUI.wsUpdateWebJSON(jsonLog); // send packet, continue in next cycle
+      return;
     }
   }
 }
@@ -523,6 +537,40 @@ void processGitHubUpdate() {
 
 /**
  * *******************************************************************
+ * @brief   live update of the position sliders (only changed values)
+ * @details positions change by RF commands, timers, MQTT/HA or the
+ *          remote control; without this the page showed the old value
+ *          until it was reloaded
+ * @param   none
+ * @return  none
+ * *******************************************************************/
+static void updatePositionElements() {
+  JsonDocument posDoc;
+  webUI.initJsonBuffer(posDoc);
+  bool changed = false;
+  for (int i = 0; i < 16; i++) {
+    if (!config.jaro.ch_enable[i])
+      continue;
+    int8_t pos = shutterPosGet(i);
+    if (pos < 0 || pos == lastSentPos[i])
+      continue;
+    lastSentPos[i] = pos;
+    char id[16];
+    char txt[8];
+    snprintf(id, sizeof(id), "p01_pos_%d", i);
+    webUI.addJson(posDoc, id, (int)pos);
+    snprintf(id, sizeof(id), "pos_lbl_%d", i);
+    snprintf(txt, sizeof(txt), "%d%%", pos);
+    webUI.addJson(posDoc, id, txt);
+    changed = true;
+  }
+  if (changed) {
+    webUI.wsUpdateWebJSON(posDoc);
+  }
+}
+
+/**
+ * *******************************************************************
  * @brief   cyclic update of webUI elements
  * @param   none
  * @return  none
@@ -543,8 +591,13 @@ void webUIupdates() {
   if (refreshTimer1.cycleTrigger(WEBUI_FAST_REFRESH_TIME_MS) && refreshRequest && !ota.isActive()) {
 
     updateSystemInfoElementsStatic(); // update static informations
+    memset(lastSentPos, -2, sizeof(lastSentPos)); // resend live positions after browser refresh
     updateTimerElements();              // start sending timer fields (one packet per cycle)
     refreshRequest = false;
+  }
+
+  if (posUpdateTimer.cycleTrigger(500) && !refreshRequest && !ota.isActive()) {
+    updatePositionElements();
   }
 
   if (timerSendTimer.cycleTrigger(50) && !ota.isActive()) {
