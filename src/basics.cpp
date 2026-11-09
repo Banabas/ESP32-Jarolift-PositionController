@@ -144,27 +144,40 @@ static void checkWiFiRoaming() {
     return;
   }
 
-  int currentRssi = WiFi.RSSI();
-  String currentBssid = WiFi.BSSIDstr();
-  int best = -1;
+  // compare scan values with scan values (same measurement method);
+  // the live RSSI of the connection is only used if our AP is missing in the scan
+  const int liveRssi = WiFi.RSSI();
+  const String currentBssid = WiFi.BSSIDstr();
+  int currentScanRssi = liveRssi;
+  int bestOther = -1; // strongest OTHER access point with our SSID
   for (int i = 0; i < n; i++) {
     if (WiFi.SSID(i) != String(config.wifi.ssid))
       continue;
-    if (best < 0 || WiFi.RSSI(i) > WiFi.RSSI(best))
-      best = i;
+    if (WiFi.BSSIDstr(i) == currentBssid) {
+      currentScanRssi = WiFi.RSSI(i);
+      continue;
+    }
+    if (bestOther < 0 || WiFi.RSSI(i) > WiFi.RSSI(bestOther))
+      bestOther = i;
   }
 
-  if (best >= 0 && WiFi.BSSIDstr(best) != currentBssid && WiFi.RSSI(best) >= currentRssi + WIFI_ROAM_MIN_GAIN) {
+  // switch only if the other AP is at least WIFI_ROAM_MIN_GAIN dB STRONGER
+  // (e.g. current -70 dBm, other -60 dBm -> switch; other -78 dBm -> stay)
+  if (bestOther >= 0 && WiFi.RSSI(bestOther) >= currentScanRssi + WIFI_ROAM_MIN_GAIN) {
     uint8_t bssid[6];
-    memcpy(bssid, WiFi.BSSID(best), 6);
-    int32_t channel = WiFi.channel(best);
-    ESP_LOGI(TAG, "WiFi roaming: switching from %s (%d dBm) to %s (%d dBm, channel %d)", currentBssid.c_str(), currentRssi,
-             WiFi.BSSIDstr(best).c_str(), (int)WiFi.RSSI(best), (int)channel);
+    memcpy(bssid, WiFi.BSSID(bestOther), 6);
+    int32_t channel = WiFi.channel(bestOther);
+    ESP_LOGI(TAG, "WiFi roaming: switching from %s (%d dBm) to %s (%d dBm, channel %d)", currentBssid.c_str(), currentScanRssi,
+             WiFi.BSSIDstr(bestOther).c_str(), (int)WiFi.RSSI(bestOther), (int)channel);
     WiFi.scanDelete();
     WiFi.begin(config.wifi.ssid, config.wifi.password, channel, bssid, true);
   } else {
-    ESP_LOGD(TAG, "WiFi roaming: staying on %s (%d dBm), best: %s (%d dBm)", currentBssid.c_str(), currentRssi,
-             best >= 0 ? WiFi.BSSIDstr(best).c_str() : "-", best >= 0 ? (int)WiFi.RSSI(best) : 0);
+    if (bestOther >= 0) {
+      ESP_LOGD(TAG, "WiFi roaming: staying on %s (%d dBm, live %d dBm) - other AP %s (%d dBm) not >= %d dB stronger", currentBssid.c_str(),
+               currentScanRssi, liveRssi, WiFi.BSSIDstr(bestOther).c_str(), (int)WiFi.RSSI(bestOther), WIFI_ROAM_MIN_GAIN);
+    } else {
+      ESP_LOGD(TAG, "WiFi roaming: staying on %s (%d dBm, live %d dBm) - no other AP found", currentBssid.c_str(), currentScanRssi, liveRssi);
+    }
     WiFi.scanDelete();
   }
 }
