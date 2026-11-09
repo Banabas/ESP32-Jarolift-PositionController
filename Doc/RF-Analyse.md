@@ -85,6 +85,18 @@ Der S2 hing trotz eines Repeaters in 2 m Entfernung mit −72 dBm an einem entfe
 - Periodisches Roaming (ähnlich Tasmota SetOption57): alle 30 Minuten asynchroner Scan nach der eigenen SSID; ist ein anderer AP mindestens 8 dB stärker, wird gezielt auf dessen BSSID umgeschaltet.
 - Log nach dem Verbinden: `WiFi AP: BSSID … | channel … | RSSI … dBm`
 
+## Befund 6: Phantom-Telegramme beim Empfang
+
+Im Log tauchten „remote signal“-Einträge auf, obwohl im SDR nichts gesendet wurde, z. B. `serial: 0x0ffeffbf | cmd: 0xb`. Ursache: Ohne Sender regelt die AGC des CC1101 das Rauschen hoch (normal bei OOK im asynchronen Modus, die AGC-Einstellungen entsprechen den TI-Empfehlungen). Ab und zu sieht eine Lücke wie ein Sync-Puls aus, und der Rest wurde ohne Prüfung „dekodiert“. Je nach Standort (Nähe zu Repeater/PC) kam das bis zu einmal pro Sekunde vor.
+
+**Änderung:** Ein Telegramm wird nur ausgewertet, wenn
+1. jedes Bit aus einem Ein- und einem Aus-Puls von 300–1000 µs mit einer Periode von 900–1500 µs besteht und
+2. der entschlüsselte Hopcode in Bit 16–23 das Low-Byte der Seriennummer enthält (KeeLoq-Diskriminierung; nur mit dem Herstellerschlüssel prüfbar, unabhängig davon, ob die Seriennummer gespeichert ist).
+
+Unbekannte Jarolift-Fernbedienungen werden weiterhin angezeigt. Verworfene Telegramme erscheinen nur im Debug-Log (`RX discarded (pulse timing|KeeLoq check)`).
+
+Die Empfangsbandbreite (ca. 270 kHz) bleibt unverändert, weil Original-Fernbedienungen bis über 100 kHz neben 433,92 MHz liegen.
+
 ## Diagnose im Log
 
 Nach jedem Senden:
@@ -116,3 +128,7 @@ Zwei Controller dürfen **nicht dieselbe Seriennummer** verwenden. Jeder Control
 6. CC1101: PATABLE nicht per Burst schreiben (setTxPowerAmp vor init)
 7. WiFi: im Mesh mit dem stärksten Access Point verbinden
 8. WiFi: periodisches Roaming zum stärksten Access Point
+9. WebUI: Logbuch in kleinen Paketen senden
+10. OTA: Flash-Belegung nur einmal ermitteln (behebt bootloader_mmap failed, #18)
+11. WebUI: Positionsregler live aktualisieren
+12. RX: Rauschen verwerfen (Pulstiming- und KeeLoq-Prüfung)
