@@ -97,6 +97,50 @@ Unbekannte Jarolift-Fernbedienungen werden weiterhin angezeigt. Verworfene Teleg
 
 Die Empfangsbandbreite (ca. 270 kHz) bleibt unverändert, weil Original-Fernbedienungen bis über 100 kHz neben 433,92 MHz liegen.
 
+## Befund 7: Empfangsversuche – Stand und offene Punkte
+
+Mit der RX-Statistik (`RX stat/min`) und dem Telnet-Befehl `cc1101` wurden die Empfangseinstellungen untersucht. **In der Firmware ist nichts davon fest übernommen**, die Standardwerte sind unverändert (MDMCFG4 = 0x69, AGCCTRL2 = 0x04, AGCCTRL0 = 0x92).
+
+### Rauschpulse am GDO2-Ausgang
+
+Im Ruhezustand liefert der CC1101 mit den Standardwerten rund **10.000 Flanken pro Sekunde** (Rauschen bei voll aufgeregelter AGC, OOK-Slicer schaltet). Jede Flanke ist ein Interrupt mit `digitalRead()`/`micros()`. Auf dem Single-Core-ESP32-S2 ist das eine erhebliche Dauerlast.
+
+Messreihe ESP32-S2 (Standort ohne nennenswerte Störungen, RSSI ca. −104 dBm), nur über Telnet gesetzt:
+
+| AGCCTRL2 / AGCCTRL0 | Bedeutung | Flanken/min |
+|---|---|---|
+| 0x04 / 0x92 (Standard) | AGC-Ziel 36 dB, OOK-Schwelle 12 dB | 630.000–870.000 |
+| 0x04 / 0x93 | OOK-Schwelle 16 dB | ~19.500 |
+| 0x04 / 0xD3 | + Hysterese groß | ~18.000 |
+| 0x03 / 0xD3 | + AGC-Ziel 33 dB | **~800** |
+| 0x43 / 0xD3 | + höchste DVGA-Stufe gesperrt | ~470.000 (schlechter) |
+| 0x83 / 0xD3 | + zwei DVGA-Stufen gesperrt | ~200.000 |
+
+OOK-Schwelle, Hysterese und AGC-Ziel senken die Interrupt-Last um etwa Faktor 1000. Das Sperren von DVGA-Stufen ist kontraproduktiv.
+
+### Empfang von Sendern
+
+- **Original-Fernbedienung TDRC16** (gemessen ca. 433,814 MHz, also −106 kHz): wird **weder mit den Standardwerten noch mit den geänderten Werten** empfangen – kein Sync, kein verworfenes Telegramm. Die Empfangsbandbreite von ca. 270 kHz (±135 kHz) reicht für diesen Versatz offenbar nicht. Vor der Frequenzkorrektur lag die Empfangsmitte bei 433,945 MHz (−131 kHz Versatz), der Empfang dürfte also auch früher schon nicht funktioniert haben.
+- **Controller untereinander** (1 m Abstand, beide auf 433,92 MHz): nicht reproduzierbar – mal wird empfangen, mal nicht; der S2 hört den ESP32 meist, umgekehrt seltener. Vermutung: Übersteuerung bzw. AGC-Einschwingen bei sehr starkem Signal nach langer Ruhe.
+- Der ESP32 (zweites Gerät) hatte am selben Standort einen um ca. **20 dB höheren Grundpegel** (RSSI −68 … −91 dBm statt −104 dBm). Ursache ungeklärt (gerätebedingt, da 1 m Abstand zum S2).
+
+### Offene Ideen für später
+
+- Empfangsbandbreite erhöhen (MDMCFG4 oberes Nibble: 0x59 = 325 kHz, 0x49 = 406 kHz, 0x39 = 464 kHz), Wirkung auf TDRC16-Empfang und Rauschflanken prüfen – noch nicht getestet.
+- AGC-Werte 0x03/0xD3 als Standard erst nach erfolgreichem Empfangstest übernehmen.
+- Wiederholungen eines Tastendrucks (gleiche Seriennummer + gleicher Zähler) nur einmal auswerten – derzeit wird jede empfangene Wiederholung einzeln verarbeitet (Positionsberechnung, Speichern der Konfiguration).
+- Empfang per RMT-RX statt GPIO-Interrupt, um die Interrupt-Last unabhängig vom Rauschen zu machen.
+
+### Werkzeuge
+
+```
+cc1101 agc          AGC-/RX-Register, RSSI, MARCSTATE anzeigen
+cc1101 r <reg>      Register lesen (hex)
+cc1101 w <reg> <v>  Config-Register schreiben (hex, nur bis zum Neustart)
+```
+
+Debug-Log: `RX stat/min: edges …, ok …, discarded …, RSSI … dBm, MARC …` sowie `RX diag: …` für verworfene Telegramme.
+
 ## Diagnose im Log
 
 Nach jedem Senden:
@@ -132,3 +176,8 @@ Zwei Controller dürfen **nicht dieselbe Seriennummer** verwenden. Jeder Control
 10. OTA: Flash-Belegung nur einmal ermitteln (behebt bootloader_mmap failed, #18)
 11. WebUI: Positionsregler live aktualisieren
 12. RX: Rauschen verwerfen (Pulstiming- und KeeLoq-Prüfung)
+13. WiFi-Roaming: Scanwerte vergleichen, Log verständlicher
+14. RX: Diagnose für verworfene Telegramme (Debug)
+15. Log: Roaming- und RX-Diagnosezeilen kürzen
+16. RX: Statistik pro Minute im Debug-Log
+17. Telnet: Befehl cc1101 zum Lesen/Schreiben von Registern
