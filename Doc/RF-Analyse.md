@@ -95,7 +95,7 @@ Im Log tauchten „remote signal“-Einträge auf, obwohl im SDR nichts gesendet
 
 Unbekannte Jarolift-Fernbedienungen werden weiterhin angezeigt. Verworfene Telegramme erscheinen nur im Debug-Log (`RX discarded (pulse timing|KeeLoq check)`).
 
-Die Empfangsbandbreite (ca. 270 kHz) bleibt unverändert, weil Original-Fernbedienungen bis über 100 kHz neben 433,92 MHz liegen.
+Die Empfangsbandbreite (ca. 270 kHz) blieb dabei unverändert. Original-Fernbedienungen liegen bis über 100 kHz neben 433,92 MHz; nach Befund 7 reicht die Bandbreite für die TDRC16 (−106 kHz) nicht aus.
 
 ## Befund 7: Empfangsversuche – Stand und offene Punkte
 
