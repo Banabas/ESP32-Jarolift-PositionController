@@ -24,6 +24,8 @@ s_espInfo espInfo;
 
 static muTimer wifiReconnectTimer = muTimer(); // timer for reconnect delay
 static int wifi_retry = 0;
+static volatile uint32_t wifiLostAt = 0;           // millis() of the connection loss, 0 = connected
+static volatile uint32_t wifiDisconnectEvents = 0; // disconnect events since the loss
 
 // periodic roaming (similar to Tasmota SetOption57): rescan and switch to a clearly stronger AP
 static const uint32_t WIFI_ROAM_INTERVAL = 30UL * 60UL * 1000UL; // scan every 30 minutes
@@ -77,7 +79,6 @@ void ntpSetup() {
  * @return  none
  * *******************************************************************/
 void onWiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
-  wifi_retry = 0;
   ESP_LOGI(TAG, "Connected to AP successfully!");
 }
 
@@ -88,8 +89,25 @@ void onWiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
  * @return  none
  * *******************************************************************/
 void onWiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
+  // while the AP is not reachable (e.g. WiFi switched off at night) the
+  // auto-reconnect of the core fails every 2-3 s and raises this event each
+  // time. Log only the transition connected -> disconnected, otherwise the
+  // log ring buffer is flooded overnight.
+  if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+    wifiDisconnectEvents++;
+  }
+  if (wifiLostAt == 0) {
+    wifiLostAt = millis() | 1; // 0 = "not lost"
+    wifiDisconnectEvents = 0;
+    if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+      ESP_LOGI(TAG, "WiFi-Disconnected (reason %u)", (unsigned)info.wifi_sta_disconnected.reason);
+    } else {
+      ESP_LOGI(TAG, "WiFi-Disconnected (lost IP)");
+    }
+  } else if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+    ESP_LOGD(TAG, "WiFi-Disconnected (reason %u, %lu)", (unsigned)info.wifi_sta_disconnected.reason, (unsigned long)wifiDisconnectEvents);
+  }
   wifi.connected = false;
-  ESP_LOGI(TAG, "WiFi-Disconnected");
 }
 
 /**
@@ -99,7 +117,13 @@ void onWiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
  * @return  none
  * *******************************************************************/
 void onWiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
-  ESP_LOGI(TAG, "WiFi connected");
+  if (wifiLostAt != 0) {
+    ESP_LOGI(TAG, "WiFi connected after %lu s offline (%i attempts)", (unsigned long)((millis() - wifiLostAt) / 1000UL), wifi_retry);
+    wifiLostAt = 0;
+  } else {
+    ESP_LOGI(TAG, "WiFi connected");
+  }
+  wifi_retry = 0;
   snprintf(wifi.ipAddress, sizeof(wifi.ipAddress), "%s", WiFi.localIP().toString().c_str());
   ESP_LOGI(TAG, "IP address: %s", wifi.ipAddress);
   ESP_LOGI(TAG, "WiFi AP: BSSID %s | channel %d | RSSI %d dBm", WiFi.BSSIDstr().c_str(), (int)WiFi.channel(), (int)WiFi.RSSI());
@@ -203,8 +227,13 @@ void checkWiFi() {
     WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
     WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
     WiFi.begin(config.wifi.ssid, config.wifi.password);
-    ESP_LOGI(TAG, "WiFi Mode STA - Trying connect to: %s", config.wifi.ssid);
-    ESP_LOGI(TAG, "WiFi connection - attempt: %i", wifi_retry);
+    // log the first attempts, then only every 10th (= every 5 min) so that a
+    // long outage does not overwrite the whole log ring buffer
+    if (wifi_retry <= 3 || wifi_retry % 10 == 0) {
+      ESP_LOGI(TAG, "WiFi reconnect to %s - attempt %i", config.wifi.ssid, wifi_retry);
+    } else {
+      ESP_LOGD(TAG, "WiFi reconnect to %s - attempt %i", config.wifi.ssid, wifi_retry);
+    }
   }
 
   checkWiFiRoaming();
