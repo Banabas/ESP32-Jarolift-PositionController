@@ -63,12 +63,23 @@ void configSetup() {
  *          is used only if it is higher, so an old backup never moves the
  *          counter back. Called after loading the file and from
  *          jaroliftSetup() (NVS/EEPROM is ready only after jarolift.begin()).
- * @param   none
+ * @param   saveIfMissing  write config.json if it does not contain the
+ *                         counter yet (e.g. first start after the update).
+ *                         Only from jaroliftSetup(), never while loading -
+ *                         the config is not complete there.
  * @return  none
  * *******************************************************************/
-void configApplyDevCnt() {
-  if (fileDevCnt < 0 || !jaroIsReady())
+void configApplyDevCnt(bool saveIfMissing) {
+  if (!jaroIsReady())
     return;
+  if (fileDevCnt < 0) {
+    if (saveIfMissing) {
+      configSaveToFile();
+      fileDevCnt = jaroGetDevCnt();
+      ESP_LOGI(TAG, "device counter added to config: %ld", (long)fileDevCnt);
+    }
+    return;
+  }
   uint16_t nvsCnt = jaroGetDevCnt();
   if ((uint16_t)fileDevCnt > nvsCnt) {
     jaroCmdSetDevCnt((uint16_t)fileDevCnt);
@@ -706,7 +717,7 @@ void configLoadFromFile() {
 
     // device counter from the file, applied in configApplyDevCnt()
     fileDevCnt = doc["jaro"]["devcnt"].is<uint16_t>() ? (int32_t)doc["jaro"]["devcnt"].as<uint16_t>() : -1;
-    configApplyDevCnt();
+    configApplyDevCnt(false);
 
     JsonArray ch_enable = doc["jaro"]["ch_enable"].as<JsonArray>();
     for (int i = 0; i < 16; i++) {

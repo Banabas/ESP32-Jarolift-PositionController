@@ -343,7 +343,7 @@ void jaroliftSetup() {
     ESP_LOGE(TAG, "CC1101 Transceiver NOT connected!");
   }
 
-  configApplyDevCnt(); // device counter from an imported config.json
+  configApplyDevCnt(true); // device counter from an imported config.json, add it if missing
   ESP_LOGI(TAG, "read Device Counter from FLASH: %i", jarolift.getDeviceCounter());
 
   jarolift.setRemoteCallback(mqttSendRemote);
