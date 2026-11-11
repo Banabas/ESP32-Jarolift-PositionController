@@ -482,33 +482,61 @@ void JaroliftController::handleRadioRxMeasure() {
   if (pbWrite_ >= kPulseBufferSize) {
     pbWrite_ = 0;
   }
+  // Glitch filter: a pulse shorter than kDebounce is a noise spike inside a
+  // longer pulse. Both edges of the spike are ignored and the surrounding
+  // pulse is measured in full - previously the spike cut the pulse in two
+  // and the telegram failed the plausibility check or was read bit-shifted.
+  static unsigned long prevLineUp = 0;
+  static unsigned long prevLineDown = 0;
+  static unsigned long prevTimeout = 0;
+  static unsigned int prevPbWrite = 0;
+  static bool lastRiseStored = false;
+
   if (pinState) { // Übergang zu HIGH
-    lineUp = currentMicros;
-    unsigned long lowVal = lineUp - lineDown;
-    if (lowVal < kDebounce)
+    unsigned long lowVal = currentMicros - lineDown;
+    if (lowVal < kDebounce) {
+      // short LOW spike inside a HIGH pulse: undo its falling edge
+      lineDown = prevLineDown;
+      lastRiseStored = false;
       return;
+    }
+    prevLineUp = lineUp;
+    prevPbWrite = pbWrite_;
+    prevTimeout = timeout;
+    lineUp = currentMicros;
+    lastRiseStored = false;
     // short pulses down to 200 us are accepted: the TDRC16 sends 290-420 us,
     // the demodulator can shorten them further
-    if (lowVal > 200 && lowVal < 4300) {
-      if (lowVal > 3650 && lowVal < 4300) {
-        timeout = currentMicros;
-        pbWrite_ = 0;
-        lowBuf_[pbWrite_] = lowVal;
-        pbWrite_++;
-      } else if (lowVal > 200 && lowVal < 1000) {
-        lowBuf_[pbWrite_] = lowVal;
-        pbWrite_++;
-        timeout = currentMicros;
-        if (pbWrite_ >= kFullTelegram && isSync(lowBuf_[0])) {
-          frameReady_ = true; // all 72 bits received
-        }
+    if (lowVal > 3650 && lowVal < 4300) {
+      timeout = currentMicros;
+      pbWrite_ = 0;
+      lowBuf_[pbWrite_] = lowVal;
+      pbWrite_++;
+      lastRiseStored = true;
+    } else if (lowVal > 200 && lowVal < 1000) {
+      lowBuf_[pbWrite_] = lowVal;
+      pbWrite_++;
+      timeout = currentMicros;
+      lastRiseStored = true;
+      if (pbWrite_ >= kFullTelegram && isSync(lowBuf_[0])) {
+        frameReady_ = true; // all 72 bits received
       }
     }
   } else { // Übergang zu LOW
-    lineDown = currentMicros;
-    unsigned long highVal = lineDown - lineUp;
-    if (highVal < kDebounce)
+    unsigned long highVal = currentMicros - lineUp;
+    if (highVal < kDebounce) {
+      // short HIGH spike inside a LOW pulse: undo its rising edge
+      lineUp = prevLineUp;
+      if (lastRiseStored) {
+        pbWrite_ = prevPbWrite;
+        timeout = prevTimeout;
+      }
+      lastRiseStored = false;
       return;
+    }
+    prevLineDown = lineDown;
+    lineDown = currentMicros;
+    lastRiseStored = false;
     if (highVal > 200 && highVal < 1000) {
       hiBuf_[pbWrite_] = highVal;
     }
