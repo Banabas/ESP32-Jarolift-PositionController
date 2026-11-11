@@ -3,6 +3,7 @@
 #include <LittleFS.h>
 #include <basics.h>
 #include <config.h>
+#include <jarolift.h>
 #include <message.h>
 
 /* D E C L A R A T I O N S ****************************************************/
@@ -14,6 +15,7 @@
 const int CFG_VERSION = 3;
 
 char filename[24] = {"/config.json"};
+static int32_t fileDevCnt = -1; // device counter read from config.json, -1 = none
 bool setupMode;
 bool configInitDone = false;
 unsigned long hashOld;
@@ -49,6 +51,29 @@ void configSetup() {
   checkGPIO();
   // check final settings
   configFinalCheck();
+}
+
+/**
+ * *******************************************************************
+ * @brief   take over the device counter from config.json
+ * @details The motors reject telegrams with a counter below the last
+ *          accepted one. After a full flash erase or on a new ESP the
+ *          counter in NVS starts at 1 again and all shutters had to be
+ *          learned again after restoring a config. The value from the file
+ *          is used only if it is higher, so an old backup never moves the
+ *          counter back. Called after loading the file and from
+ *          jaroliftSetup() (NVS/EEPROM is ready only after jarolift.begin()).
+ * @param   none
+ * @return  none
+ * *******************************************************************/
+void configApplyDevCnt() {
+  if (fileDevCnt < 0 || !jaroIsReady())
+    return;
+  uint16_t nvsCnt = jaroGetDevCnt();
+  if ((uint16_t)fileDevCnt > nvsCnt) {
+    jaroCmdSetDevCnt((uint16_t)fileDevCnt);
+    ESP_LOGI(TAG, "device counter restored from config: %u (was %u)", (unsigned)fileDevCnt, (unsigned)nvsCnt);
+  }
 }
 
 /**
@@ -432,6 +457,14 @@ void configSaveToFile() {
   doc["jaro"]["masterLSB"] = config.jaro.masterLSB;
   doc["jaro"]["serial"] = config.jaro.serial;
   doc["jaro"]["learn_mode"] = config.jaro.learn_mode;
+  // the device counter is stored in NVS, not in config. It is written here
+  // only so that an exported config.json contains it (see configApplyDevCnt).
+  // Before jaroliftSetup() NVS/EEPROM must not be read yet - keep the file value
+  if (jaroIsReady()) {
+    doc["jaro"]["devcnt"] = jaroGetDevCnt();
+  } else if (fileDevCnt >= 0) {
+    doc["jaro"]["devcnt"] = (uint16_t)fileDevCnt;
+  }
 
   JsonArray ch_enable = doc["jaro"]["ch_enable"].to<JsonArray>();
   for (int i = 0; i < 16; i++) {
@@ -670,6 +703,10 @@ void configLoadFromFile() {
     config.jaro.masterLSB = doc["jaro"]["masterLSB"];
     config.jaro.serial = doc["jaro"]["serial"];
     config.jaro.learn_mode = doc["jaro"]["learn_mode"];
+
+    // device counter from the file, applied in configApplyDevCnt()
+    fileDevCnt = doc["jaro"]["devcnt"].is<uint16_t>() ? (int32_t)doc["jaro"]["devcnt"].as<uint16_t>() : -1;
+    configApplyDevCnt();
 
     JsonArray ch_enable = doc["jaro"]["ch_enable"].as<JsonArray>();
     for (int i = 0; i < 16; i++) {

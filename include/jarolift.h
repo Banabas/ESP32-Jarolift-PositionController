@@ -8,6 +8,7 @@ void jaroCcWrite(uint8_t reg, uint8_t value);
 const char *jaroRxStat();
 uint8_t getCC1101Rssi();
 uint16_t jaroGetDevCnt();
+bool jaroIsReady();
 
 void jaroliftSetup();
 void jaroliftCyclic();

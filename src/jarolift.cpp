@@ -15,6 +15,7 @@
 
 static muTimer timerTimer = muTimer();
 static const char *TAG = "JARO"; // LOG TAG
+static bool jaroReady = false; // jarolift.begin() done (NVS/EEPROM for the device counter ready)
 
 /** Channel label for log output: configured name, or "Ch N" fallback. */
 static const char *chName(uint8_t ch) {
@@ -334,6 +335,7 @@ void jaroliftSetup() {
   jarolift.setBaseSerial(config.jaro.serial);
   jarolift.setLegacyLearnMode(!config.jaro.learn_mode);
   jarolift.begin();
+  jaroReady = true;
 
   if (jarolift.getCC1101State()) {
     ESP_LOGI(TAG, "CC1101 Transceiver connected!");
@@ -341,6 +343,7 @@ void jaroliftSetup() {
     ESP_LOGE(TAG, "CC1101 Transceiver NOT connected!");
   }
 
+  configApplyDevCnt(); // device counter from an imported config.json
   ESP_LOGI(TAG, "read Device Counter from FLASH: %i", jarolift.getDeviceCounter());
 
   jarolift.setRemoteCallback(mqttSendRemote);
@@ -350,6 +353,7 @@ void jaroliftSetup() {
 void jaroCmdReInit() { jaroliftSetup(); };
 void jaroCmdSetDevCnt(uint16_t value) { jarolift.setDeviceCounter(value); };
 uint16_t jaroGetDevCnt() { return jarolift.getDeviceCounter(); };
+bool jaroIsReady() { return jaroReady; };
 bool getCC1101State() { return jarolift.getCC1101State(); };
 uint8_t jaroCcRead(uint8_t reg) { return jarolift.ccReadReg(reg); };
 void jaroCcWrite(uint8_t reg, uint8_t value) { jarolift.ccWriteReg(reg, value); };

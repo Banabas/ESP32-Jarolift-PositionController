@@ -52,6 +52,11 @@ void webCallback(const char *elementId, const char *value) {
   if (strcmp(elementId, "check_git_version") == 0 || strcmp(elementId, "p11_check_git_btn") == 0) {
     requestGitHubVersion();
   }
+  // Config export: write config.json with the current device counter
+  // before the browser downloads it (download is delayed in user.js)
+  if (strcmp(elementId, "p11_export_btn") == 0) {
+    configSaveToFile();
+  }
   // Github Update
   if (strcmp(elementId, "p00_update_btn") == 0) {
     requestGitHubUpdate();
@@ -250,6 +255,7 @@ void webCallback(const char *elementId, const char *value) {
   }
   if (strcmp(elementId, "p12_jaro_devcnt") == 0) {
     jaroCmdSetDevCnt(strtoul(value, NULL, 10));
+    configSaveToFile(); // keep devcnt in config.json in sync (also when set lower)
   }
 
   // Shutter 1-16

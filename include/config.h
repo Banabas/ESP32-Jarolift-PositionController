@@ -191,5 +191,6 @@ void configSetup();
 void configCyclic();
 void configSaveToFile();
 void configLoadFromFile();
+void configApplyDevCnt();
 void configInitValue();
 void configGPIO();

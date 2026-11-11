@@ -529,3 +529,14 @@ function logger(data) {
   }
 }
 
+// CONFIG export: the click also sends "p11_export_btn" to the ESP, which then
+// writes config.json with the current device counter. Start the download
+// shortly afterwards so the file contains the current value.
+function exportConfigCurrent() {
+  if (isGitHubPages()) {
+    exportConfig();
+    return;
+  }
+  setTimeout(exportConfig, 1000);
+}
+
