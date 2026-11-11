@@ -46,7 +46,7 @@ Command commands[] = {
     {"shutter", cmdShutter, "shutter commands", "channel, up/down/stop/shade"},
     {"group", cmdGroup, "group commands", "group, up/down/stop/shade"},
     {"test", cmdTest, "test commands", "group"},
-    {"cc1101", cmdCC1101, "CC1101 register (hex, not persistent)", "r <reg> | w <reg> <val> | agc"},
+    {"cc1101", cmdCC1101, "CC1101 register (hex, not persistent)", "r <reg> | w <reg> <val> | agc | stat"},
 };
 const int commandsCount = sizeof(commands) / sizeof(commands[0]);
 
@@ -308,8 +308,10 @@ void cmdCC1101(char param[MAX_PAR][MAX_CHAR]) {
     uint8_t raw = jaroCcRead(0x34);
     int rssi = ((raw >= 128) ? ((int)raw - 256) / 2 : (int)raw / 2) - 74;
     telnet.printf("RSSI      %d dBm, MARCSTATE 0x%02X\n", rssi, jaroCcRead(0x35) & 0x1F);
+  } else if (!strcmp(param[1], "stat")) {
+    telnet.println(jaroRxStat());
   } else {
-    telnet.println("usage: cc1101 r <reg> | cc1101 w <reg> <val> | cc1101 agc   (hex)");
+    telnet.println("usage: cc1101 r <reg> | cc1101 w <reg> <val> | cc1101 agc | cc1101 stat   (hex)");
   }
 }
 

@@ -1112,19 +1112,51 @@ void JaroliftController::loop() {
 
   processRxData(); // process received data
 
-  // RX statistics once per minute (debug): number of GDO2 edges, accepted and
-  // discarded telegrams, current RSSI (noise floor if nothing is sent) and
-  // radio state - shows whether disturbances come via RF (RSSI/edges up) or not
+  // RX statistics: measured per minute, logged as an hourly summary (debug)
+  // and immediately (info, max. every 10 min) if the number of GDO2 edges or
+  // discarded telegrams exceeds a threshold - e.g. a disturbing device nearby.
   if (millis() - rxStatMs_ >= 60000) {
     rxStatMs_ = millis();
     uint32_t edges = rxEdgeCount_;
     rxEdgeCount_ = 0;
-    uint8_t raw = cc1101_.readReg(CC1101_RSSI, CC1101_STATUS_REGISTER);
-    int rssiDbm = ((raw >= 128) ? ((int)raw - 256) / 2 : (int)raw / 2) - 74;
-    uint8_t marc = cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F;
-    ESP_LOGD(TAG, "RX stat/min: edges %lu, ok %lu, discarded %lu, RSSI %d dBm, MARC 0x%02X", (unsigned long)edges,
-             (unsigned long)rxOkCount_, (unsigned long)rxDiscardCount_, rssiDbm, marc);
+    uint32_t ok = rxOkCount_;
+    uint32_t discarded = rxDiscardCount_;
     rxOkCount_ = 0;
     rxDiscardCount_ = 0;
+    uint8_t raw = cc1101_.readReg(CC1101_RSSI, CC1101_STATUS_REGISTER);
+    int rssiDbm = ((raw >= 128) ? ((int)raw - 256) / 2 : (int)raw / 2) - 74;
+
+    snprintf(rxLastStat_, sizeof(rxLastStat_), "last minute: edges %lu, ok %lu, discarded %lu, RSSI %d dBm", (unsigned long)edges,
+             (unsigned long)ok, (unsigned long)discarded, rssiDbm);
+
+    // alarm
+    bool alarm = (edges > kRxAlarmEdgesPerMin) || (discarded >= kRxAlarmDiscardPerMin);
+    if (alarm && (!rxAlarmLogged_ || millis() - rxAlarmMs_ >= kRxAlarmPauseMs)) {
+      uint8_t marc = cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F;
+      ESP_LOGI(TAG, "RX disturbed: edges %lu/min, discarded %lu, RSSI %d dBm, MARC 0x%02X", (unsigned long)edges,
+               (unsigned long)discarded, rssiDbm, marc);
+      rxAlarmMs_ = millis();
+      rxAlarmLogged_ = true;
+    }
+
+    // hourly summary
+    rxHourEdges_ += edges;
+    if (edges > rxHourEdgesMax_)
+      rxHourEdgesMax_ = edges;
+    rxHourOk_ += ok;
+    rxHourDiscard_ += discarded;
+    if (rssiDbm < rxHourRssiMin_ || rxHourMinutes_ == 0)
+      rxHourRssiMin_ = rssiDbm;
+    if (rssiDbm > rxHourRssiMax_ || rxHourMinutes_ == 0)
+      rxHourRssiMax_ = rssiDbm;
+    if (++rxHourMinutes_ >= 60) {
+      ESP_LOGD(TAG, "RX stat/h: edges/min avg %lu max %lu, ok %lu, disc %lu, RSSI %d..%d", (unsigned long)(rxHourEdges_ / 60),
+               (unsigned long)rxHourEdgesMax_, (unsigned long)rxHourOk_, (unsigned long)rxHourDiscard_, rxHourRssiMin_, rxHourRssiMax_);
+      rxHourEdges_ = 0;
+      rxHourEdgesMax_ = 0;
+      rxHourOk_ = 0;
+      rxHourDiscard_ = 0;
+      rxHourMinutes_ = 0;
+    }
   }
 }
