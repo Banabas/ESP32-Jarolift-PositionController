@@ -490,7 +490,10 @@ void JaroliftController::handleRadioRxMeasure() {
   static unsigned long prevLineDown = 0;
   static unsigned long prevTimeout = 0;
   static unsigned int prevPbWrite = 0;
+  static unsigned int prevLowBuf0 = 0;
   static bool lastRiseStored = false;
+  static bool lastRiseSync = false; // last rising edge stored a sync gap in lowBuf_[0]
+  static bool framePending = false; // all bits received, confirmed by the next valid falling edge
 
   if (pinState) { // Übergang zu HIGH
     unsigned long lowVal = currentMicros - lineDown;
@@ -507,19 +510,24 @@ void JaroliftController::handleRadioRxMeasure() {
     lastRiseStored = false;
     // short pulses down to 200 us are accepted: the TDRC16 sends 290-420 us,
     // the demodulator can shorten them further
+    lastRiseSync = false;
     if (lowVal > 3650 && lowVal < 4300) {
       timeout = currentMicros;
+      prevLowBuf0 = lowBuf_[0]; // restored if this edge turns out to be a spike
       pbWrite_ = 0;
       lowBuf_[pbWrite_] = lowVal;
       pbWrite_++;
       lastRiseStored = true;
+      lastRiseSync = true;
     } else if (lowVal > 200 && lowVal < 1000) {
       lowBuf_[pbWrite_] = lowVal;
       pbWrite_++;
       timeout = currentMicros;
       lastRiseStored = true;
       if (pbWrite_ >= kFullTelegram && isSync(lowBuf_[0])) {
-        frameReady_ = true; // all 72 bits received
+        // all 72 bits received - frameReady_ is set by the next falling edge,
+        // so that a spike at this edge can still be undone
+        framePending = true;
       }
     }
   } else { // Übergang zu LOW
@@ -530,15 +538,24 @@ void JaroliftController::handleRadioRxMeasure() {
       if (lastRiseStored) {
         pbWrite_ = prevPbWrite;
         timeout = prevTimeout;
+        if (lastRiseSync)
+          lowBuf_[0] = prevLowBuf0;
       }
       lastRiseStored = false;
+      lastRiseSync = false;
+      framePending = false;
       return;
     }
     prevLineDown = lineDown;
     lineDown = currentMicros;
     lastRiseStored = false;
-    if (highVal > 200 && highVal < 1000) {
-      hiBuf_[pbWrite_] = highVal;
+    lastRiseSync = false;
+    // always write: an out-of-range pulse is stored as 0 (invalid), so that a
+    // partial value from an earlier spike inside this pulse does not remain
+    hiBuf_[pbWrite_] = (highVal > 200 && highVal < 1000) ? highVal : 0;
+    if (framePending) {
+      framePending = false;
+      frameReady_ = true; // all 72 bits received
     }
   }
 }
