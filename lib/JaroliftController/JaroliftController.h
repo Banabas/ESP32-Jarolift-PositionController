@@ -74,6 +74,7 @@ public:
   // direct CC1101 register access for tests (telnet "cc1101"), not persistent
   uint8_t ccReadReg(uint8_t reg);
   void ccWriteReg(uint8_t reg, uint8_t value);
+  const char *getRxStat() { return rxLastStat_; } // values of the last full minute
   // millis() when the first telegram of the last transmission was complete
   // (= the motor starts), 0 if nothing was sent
   uint32_t getTxStartMs() const { return txStartMs_; }
@@ -155,6 +156,20 @@ private:
   uint32_t rxOkCount_ = 0;
   uint32_t rxDiscardCount_ = 0;
   uint32_t rxStatMs_ = 0;
+  // hourly summary + alarm when thresholds are exceeded
+  uint32_t rxHourEdges_ = 0;
+  uint32_t rxHourEdgesMax_ = 0;
+  uint32_t rxHourOk_ = 0;
+  uint32_t rxHourDiscard_ = 0;
+  int rxHourRssiMin_ = 0;
+  int rxHourRssiMax_ = -200;
+  uint8_t rxHourMinutes_ = 0;
+  uint32_t rxAlarmMs_ = 0;
+  bool rxAlarmLogged_ = false;
+  char rxLastStat_[96] = "no data yet";
+  static constexpr uint32_t kRxAlarmEdgesPerMin = 50000; // normal: a few 1000/min
+  static constexpr uint32_t kRxAlarmDiscardPerMin = 5;
+  static constexpr uint32_t kRxAlarmPauseMs = 10UL * 60UL * 1000UL; // max. one alarm per 10 min
   uint32_t txStartMs_;
   void initRmt();
   void txAddLevel(uint8_t level, uint16_t durationUs);

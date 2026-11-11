@@ -99,7 +99,7 @@ Die Empfangsbandbreite (ca. 270 kHz) blieb dabei unverändert. Original-Fernbedi
 
 ## Befund 7: Empfangsversuche – Stand und offene Punkte
 
-Mit der RX-Statistik (`RX stat/min`) und dem Telnet-Befehl `cc1101` wurden die Empfangseinstellungen untersucht. **In der Firmware ist nichts davon fest übernommen**, die Standardwerte sind unverändert (MDMCFG4 = 0x69, AGCCTRL2 = 0x04, AGCCTRL0 = 0x92).
+Mit der RX-Statistik (`RX stat/min`) und dem Telnet-Befehl `cc1101` wurden die Empfangseinstellungen untersucht. Die damaligen Standardwerte waren MDMCFG4 = 0x69, AGCCTRL2 = 0x04, AGCCTRL0 = 0x92; inzwischen gelten die Werte aus Befund 8.
 
 ### Rauschpulse am GDO2-Ausgang
 
@@ -139,7 +139,50 @@ cc1101 r <reg>      Register lesen (hex)
 cc1101 w <reg> <v>  Config-Register schreiben (hex, nur bis zum Neustart)
 ```
 
-Debug-Log: `RX stat/min: edges …, ok …, discarded …, RSSI … dBm, MARC …` sowie `RX diag: …` für verworfene Telegramme.
+Debug-Log: `RX stat/h: …` (stündliche Zusammenfassung), Info: `RX disturbed: …` bei Überschreiten der Schwellwerte, Telnet `cc1101 stat` (letzte Minute) sowie `RX diag: …` für verworfene Telegramme.
+
+## Befund 8: Empfangseinstellungen von SIGNALduinoAdv (Ralf9)
+
+Die Werte aus Bank 0 („SlowRF“) des SIGNALduinoAdv von Ralf9 wurden per Telnet getestet und danach fest übernommen:
+
+| Register | vorher | neu (Ralf9) | Bedeutung |
+|---|---|---|---|
+| MDMCFG4 | 0x69 | 0x57 | RX-Filter 325 kHz (statt 270 kHz), DRATE_E 7 |
+| MDMCFG3 | 0xE4 | 0xC4 | Datenrate ≈ 5,6 kBaud (statt ≈ 24 kBaud) |
+| AGCCTRL2 | 0x04 | 0x07 | AGC-Ziel 42 dB |
+| AGCCTRL0 | 0x92 | 0x91 | OOK-Entscheidungsschwelle 8 dB |
+| FREND1 | 0xB6 | 0x56 | |
+| FIFOTHR | 0x47 | 0x07 | |
+| TEST2 / TEST1 | 0x81 / 0x35 | 0x88 / 0x31 | |
+
+Ergebnis: Die Original-Fernbedienung TDRC16 (≈ 433,82 MHz) wird empfangen, die Controller hören sich gegenseitig deutlich zuverlässiger. Senden ist nicht betroffen (asynchroner Modus).
+
+Eine SDR-Aufnahme der TDRC16 (demoduliert, 48 kHz) zeigt: Präambel mit einem langen Puls (1,5–2,2 ms) und 12–13 Pulsen ≈ 400/400 µs, Sync-Lücke 3,96–3,98 ms, 72 Bits mit Periode 1,17–1,25 ms, kurze Pulse 290–420 µs, lange 770–810 µs. Jeder Code wird zweimal im Abstand von ca. 16 ms gesendet, bei gehaltener Taste folgt etwa alle 340 ms der nächste Zählerstand. Weil die kurzen Pulse teils unter 300 µs lagen, akzeptiert die Empfangsroutine jetzt Pulse ab 200 µs.
+
+Hinweis: Die empfindlicheren Einstellungen liefern im Ruhezustand wieder viele Rauschflanken (Interrupt-Last); die Plausibilitätsprüfung (Befund 6) verwirft die daraus entstehenden Phantom-Telegramme.
+
+Zusätzlich:
+- **Glitch-Filter:** Ein Störimpuls unter 200 µs mitten in einem Puls zerschnitt diesen bisher in zwei Teile (Folge: Pulsprüfung schlug fehl oder die Bits wurden verschoben gelesen, z. B. Seriennummer 0x01B90003 statt 0x03720007). Jetzt werden beide Flanken eines solchen Impulses verworfen und der umgebende Puls vollständig gemessen.
+- **RX-Statistik:** intern pro Minute gemessen, im Debug-Log nur noch als stündliche Zusammenfassung; bei mehr als 50.000 Flanken/min oder mindestens 5 verworfenen Telegrammen/min sofort eine Info-Meldung `RX disturbed` (höchstens alle 10 min).
+
+Mit den Werten von Ralf9 sinken auch die Rauschflanken im Ruhezustand deutlich (S2: von 630.000–870.000 auf ca. 1.000–4.000 pro Minute), vermutlich wegen der niedrigeren Datenrate.
+
+## Befund 9: Empfangsqualität hängt stark vom Hardware-Aufbau ab
+
+Vergleich der beiden Controller am selben Ort (1 m Abstand), gleiche Firmware und Einstellungen:
+
+| | ESP32-S2 (CC1101 fest aufgelötet) | ESP32 „mini“ |
+|---|---|---|
+| RSSI in Ruhe | −95 … −100 dBm | −59 … −67 dBm |
+| Flanken/min in Ruhe | ca. 2.000–4.000 | ca. 25.000 (vor Entstörung 50.000–90.000) |
+| TDRC16-Test (vor Entstörung des mini) | 9 ok / 0 verworfen | 3 ok / 10 verworfen |
+
+Beobachtungen:
+- Der ESP32 „mini“ stört seinen eigenen Empfänger, auch an einer eigenen Powerbank. An einer gemeinsamen Powerbank hat er zusätzlich den S2 gestört (dessen Flanken stiegen auf ca. 90.000/min).
+- Ferrit an der Versorgung brachte wenig, Entstörkondensatoren am mini deutlich mehr (Flanken etwa Faktor 5 weniger). Der um ca. 25–35 dB höhere RSSI blieb – auch mit 30 cm abgesetztem CC1101-Modul und 10 nF direkt am Modul.
+- Dasselbe steckbare CC1101-Modul erreicht am S2 ca. −80 dBm, am mini deutlich schlechter.
+- Fazit: Die Empfangsschwäche ist im Zusammenspiel mit diesem ESP32-Board systembedingt. Für guten Empfang ist der Hardware-Aufbau (Board, Versorgung, Verdrahtung, Lage der Antenne) entscheidend; ein fest aufgelöteter Aufbau wie beim S2 empfängt deutlich besser.
+- Der S2 zeigte zweimal einen Zustand mit dauerhaft stark erhöhter Flankenzahl bei unverändertem RSSI (u. a. nachdem er wenige Zentimeter neben dem mini lag), der erst durch Aus- und Einschalten verschwand. Ursache ungeklärt; als Test im gestörten Zustand vorgesehen: `cc1101 w 1d 91` (IDLE → RX mit Neukalibrierung), dann `restart`.
 
 ## Diagnose im Log
 
@@ -181,3 +224,7 @@ Zwei Controller dürfen **nicht dieselbe Seriennummer** verwenden. Jeder Control
 15. Log: Roaming- und RX-Diagnosezeilen kürzen
 16. RX: Statistik pro Minute im Debug-Log
 17. Telnet: Befehl cc1101 zum Lesen/Schreiben von Registern
+18. CC1101: Empfangseinstellungen von SIGNALduinoAdv (Ralf9) übernehmen
+19. RX: kurze Pulse ab 200 µs akzeptieren
+20. RX: Störspitzen innerhalb eines Pulses herausfiltern
+21. RX-Statistik: stündliche Zusammenfassung statt Minutenmeldung

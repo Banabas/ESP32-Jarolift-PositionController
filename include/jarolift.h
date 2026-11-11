@@ -5,6 +5,7 @@ void jaroCmdReInit();
 bool getCC1101State();
 uint8_t jaroCcRead(uint8_t reg);
 void jaroCcWrite(uint8_t reg, uint8_t value);
+const char *jaroRxStat();
 uint8_t getCC1101Rssi();
 uint16_t jaroGetDevCnt();
 

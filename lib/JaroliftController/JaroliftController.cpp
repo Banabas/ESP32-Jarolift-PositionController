@@ -482,32 +482,62 @@ void JaroliftController::handleRadioRxMeasure() {
   if (pbWrite_ >= kPulseBufferSize) {
     pbWrite_ = 0;
   }
+  // Glitch filter: a pulse shorter than kDebounce is a noise spike inside a
+  // longer pulse. Both edges of the spike are ignored and the surrounding
+  // pulse is measured in full - previously the spike cut the pulse in two
+  // and the telegram failed the plausibility check or was read bit-shifted.
+  static unsigned long prevLineUp = 0;
+  static unsigned long prevLineDown = 0;
+  static unsigned long prevTimeout = 0;
+  static unsigned int prevPbWrite = 0;
+  static bool lastRiseStored = false;
+
   if (pinState) { // Übergang zu HIGH
-    lineUp = currentMicros;
-    unsigned long lowVal = lineUp - lineDown;
-    if (lowVal < kDebounce)
+    unsigned long lowVal = currentMicros - lineDown;
+    if (lowVal < kDebounce) {
+      // short LOW spike inside a HIGH pulse: undo its falling edge
+      lineDown = prevLineDown;
+      lastRiseStored = false;
       return;
-    if (lowVal > 300 && lowVal < 4300) {
-      if (lowVal > 3650 && lowVal < 4300) {
-        timeout = currentMicros;
-        pbWrite_ = 0;
-        lowBuf_[pbWrite_] = lowVal;
-        pbWrite_++;
-      } else if (lowVal > 300 && lowVal < 1000) {
-        lowBuf_[pbWrite_] = lowVal;
-        pbWrite_++;
-        timeout = currentMicros;
-        if (pbWrite_ >= kFullTelegram && isSync(lowBuf_[0])) {
-          frameReady_ = true; // all 72 bits received
-        }
+    }
+    prevLineUp = lineUp;
+    prevPbWrite = pbWrite_;
+    prevTimeout = timeout;
+    lineUp = currentMicros;
+    lastRiseStored = false;
+    // short pulses down to 200 us are accepted: the TDRC16 sends 290-420 us,
+    // the demodulator can shorten them further
+    if (lowVal > 3650 && lowVal < 4300) {
+      timeout = currentMicros;
+      pbWrite_ = 0;
+      lowBuf_[pbWrite_] = lowVal;
+      pbWrite_++;
+      lastRiseStored = true;
+    } else if (lowVal > 200 && lowVal < 1000) {
+      lowBuf_[pbWrite_] = lowVal;
+      pbWrite_++;
+      timeout = currentMicros;
+      lastRiseStored = true;
+      if (pbWrite_ >= kFullTelegram && isSync(lowBuf_[0])) {
+        frameReady_ = true; // all 72 bits received
       }
     }
   } else { // Übergang zu LOW
-    lineDown = currentMicros;
-    unsigned long highVal = lineDown - lineUp;
-    if (highVal < kDebounce)
+    unsigned long highVal = currentMicros - lineUp;
+    if (highVal < kDebounce) {
+      // short HIGH spike inside a LOW pulse: undo its rising edge
+      lineUp = prevLineUp;
+      if (lastRiseStored) {
+        pbWrite_ = prevPbWrite;
+        timeout = prevTimeout;
+      }
+      lastRiseStored = false;
       return;
-    if (highVal > 300 && highVal < 1000) {
+    }
+    prevLineDown = lineDown;
+    lineDown = currentMicros;
+    lastRiseStored = false;
+    if (highVal > 200 && highVal < 1000) {
       hiBuf_[pbWrite_] = highVal;
     }
   }
@@ -944,7 +974,7 @@ void JaroliftController::processRxData() {
         rxDiscH_ |= (1 << i);
     }
 
-    // plausibility check 1: every bit = one LOW + one HIGH pulse of 400/800 us,
+    // plausibility check 1: every bit = one LOW + one HIGH pulse of 400/800 us (accepted 200-1000 us),
     // period ~1200 us. Random noise (AGC of the receiver amplifies noise when
     // no transmitter is active) occasionally looks like a sync pulse and is
     // then "decoded" into garbage.
@@ -952,7 +982,7 @@ void JaroliftController::processRxData() {
     unsigned int badIdx = 0;
     for (unsigned int i = 1; i <= 64 && i < len; i++) {
       unsigned long period = lowBuf_[i] + hiBuf_[i];
-      if (lowBuf_[i] < 300 || hiBuf_[i] < 300 || period < 900 || period > 1500) {
+      if (lowBuf_[i] < 200 || hiBuf_[i] < 200 || period < 900 || period > 1500) {
         pulsesOk = false;
         badIdx = i;
         break;
@@ -1082,19 +1112,51 @@ void JaroliftController::loop() {
 
   processRxData(); // process received data
 
-  // RX statistics once per minute (debug): number of GDO2 edges, accepted and
-  // discarded telegrams, current RSSI (noise floor if nothing is sent) and
-  // radio state - shows whether disturbances come via RF (RSSI/edges up) or not
+  // RX statistics: measured per minute, logged as an hourly summary (debug)
+  // and immediately (info, max. every 10 min) if the number of GDO2 edges or
+  // discarded telegrams exceeds a threshold - e.g. a disturbing device nearby.
   if (millis() - rxStatMs_ >= 60000) {
     rxStatMs_ = millis();
     uint32_t edges = rxEdgeCount_;
     rxEdgeCount_ = 0;
-    uint8_t raw = cc1101_.readReg(CC1101_RSSI, CC1101_STATUS_REGISTER);
-    int rssiDbm = ((raw >= 128) ? ((int)raw - 256) / 2 : (int)raw / 2) - 74;
-    uint8_t marc = cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F;
-    ESP_LOGD(TAG, "RX stat/min: edges %lu, ok %lu, discarded %lu, RSSI %d dBm, MARC 0x%02X", (unsigned long)edges,
-             (unsigned long)rxOkCount_, (unsigned long)rxDiscardCount_, rssiDbm, marc);
+    uint32_t ok = rxOkCount_;
+    uint32_t discarded = rxDiscardCount_;
     rxOkCount_ = 0;
     rxDiscardCount_ = 0;
+    uint8_t raw = cc1101_.readReg(CC1101_RSSI, CC1101_STATUS_REGISTER);
+    int rssiDbm = ((raw >= 128) ? ((int)raw - 256) / 2 : (int)raw / 2) - 74;
+
+    snprintf(rxLastStat_, sizeof(rxLastStat_), "last minute: edges %lu, ok %lu, discarded %lu, RSSI %d dBm", (unsigned long)edges,
+             (unsigned long)ok, (unsigned long)discarded, rssiDbm);
+
+    // alarm
+    bool alarm = (edges > kRxAlarmEdgesPerMin) || (discarded >= kRxAlarmDiscardPerMin);
+    if (alarm && (!rxAlarmLogged_ || millis() - rxAlarmMs_ >= kRxAlarmPauseMs)) {
+      uint8_t marc = cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F;
+      ESP_LOGI(TAG, "RX disturbed: edges %lu/min, discarded %lu, RSSI %d dBm, MARC 0x%02X", (unsigned long)edges,
+               (unsigned long)discarded, rssiDbm, marc);
+      rxAlarmMs_ = millis();
+      rxAlarmLogged_ = true;
+    }
+
+    // hourly summary
+    rxHourEdges_ += edges;
+    if (edges > rxHourEdgesMax_)
+      rxHourEdgesMax_ = edges;
+    rxHourOk_ += ok;
+    rxHourDiscard_ += discarded;
+    if (rssiDbm < rxHourRssiMin_ || rxHourMinutes_ == 0)
+      rxHourRssiMin_ = rssiDbm;
+    if (rssiDbm > rxHourRssiMax_ || rxHourMinutes_ == 0)
+      rxHourRssiMax_ = rssiDbm;
+    if (++rxHourMinutes_ >= 60) {
+      ESP_LOGD(TAG, "RX stat/h: edges/min avg %lu max %lu, ok %lu, disc %lu, RSSI %d..%d", (unsigned long)(rxHourEdges_ / 60),
+               (unsigned long)rxHourEdgesMax_, (unsigned long)rxHourOk_, (unsigned long)rxHourDiscard_, rxHourRssiMin_, rxHourRssiMax_);
+      rxHourEdges_ = 0;
+      rxHourEdgesMax_ = 0;
+      rxHourOk_ = 0;
+      rxHourDiscard_ = 0;
+      rxHourMinutes_ = 0;
+    }
   }
 }
