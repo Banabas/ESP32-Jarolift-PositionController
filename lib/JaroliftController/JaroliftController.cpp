@@ -458,6 +458,7 @@ void JaroliftController::handleRadioRxMeasure() {
   static unsigned long lineUp = 0;
   static unsigned long lineDown = 0;
   static unsigned long timeout = 0;
+  static bool framePending = false; // all bits received, confirmed by the next valid falling edge
   unsigned long currentMicros = micros();
   int pinState = digitalRead(gpio_.gdo2);
   rxEdgeCount_++;
@@ -465,7 +466,8 @@ void JaroliftController::handleRadioRxMeasure() {
   // sends one telegram per key press, it must not be overwritten while the
   // main loop is busy (e.g. saving the config)
   if (frameReady_ || (currentMicros - timeout > 3500 && pbWrite_ >= kMinTelegram && isSync(lowBuf_[0]))) {
-    frameReady_ = true; // pause after a shorter telegram
+    frameReady_ = true;   // pause after a shorter telegram
+    framePending = false; // frame completed by the pause, not by the next falling edge
     if (pinState)
       lineUp = currentMicros;
     else
@@ -493,7 +495,6 @@ void JaroliftController::handleRadioRxMeasure() {
   static unsigned int prevLowBuf0 = 0;
   static bool lastRiseStored = false;
   static bool lastRiseSync = false; // last rising edge stored a sync gap in lowBuf_[0]
-  static bool framePending = false; // all bits received, confirmed by the next valid falling edge
 
   if (pinState) { // Übergang zu HIGH
     unsigned long lowVal = currentMicros - lineDown;
