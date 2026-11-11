@@ -487,13 +487,15 @@ void JaroliftController::handleRadioRxMeasure() {
     unsigned long lowVal = lineUp - lineDown;
     if (lowVal < kDebounce)
       return;
-    if (lowVal > 300 && lowVal < 4300) {
+    // short pulses down to 200 us are accepted: the TDRC16 sends 290-420 us,
+    // the demodulator can shorten them further
+    if (lowVal > 200 && lowVal < 4300) {
       if (lowVal > 3650 && lowVal < 4300) {
         timeout = currentMicros;
         pbWrite_ = 0;
         lowBuf_[pbWrite_] = lowVal;
         pbWrite_++;
-      } else if (lowVal > 300 && lowVal < 1000) {
+      } else if (lowVal > 200 && lowVal < 1000) {
         lowBuf_[pbWrite_] = lowVal;
         pbWrite_++;
         timeout = currentMicros;
@@ -507,7 +509,7 @@ void JaroliftController::handleRadioRxMeasure() {
     unsigned long highVal = lineDown - lineUp;
     if (highVal < kDebounce)
       return;
-    if (highVal > 300 && highVal < 1000) {
+    if (highVal > 200 && highVal < 1000) {
       hiBuf_[pbWrite_] = highVal;
     }
   }
@@ -944,7 +946,7 @@ void JaroliftController::processRxData() {
         rxDiscH_ |= (1 << i);
     }
 
-    // plausibility check 1: every bit = one LOW + one HIGH pulse of 400/800 us,
+    // plausibility check 1: every bit = one LOW + one HIGH pulse of 400/800 us (accepted 200-1000 us),
     // period ~1200 us. Random noise (AGC of the receiver amplifies noise when
     // no transmitter is active) occasionally looks like a sync pulse and is
     // then "decoded" into garbage.
@@ -952,7 +954,7 @@ void JaroliftController::processRxData() {
     unsigned int badIdx = 0;
     for (unsigned int i = 1; i <= 64 && i < len; i++) {
       unsigned long period = lowBuf_[i] + hiBuf_[i];
-      if (lowBuf_[i] < 300 || hiBuf_[i] < 300 || period < 900 || period > 1500) {
+      if (lowBuf_[i] < 200 || hiBuf_[i] < 200 || period < 900 || period > 1500) {
         pulsesOk = false;
         badIdx = i;
         break;
