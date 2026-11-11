@@ -141,6 +141,26 @@ cc1101 w <reg> <v>  Config-Register schreiben (hex, nur bis zum Neustart)
 
 Debug-Log: `RX stat/min: edges …, ok …, discarded …, RSSI … dBm, MARC …` sowie `RX diag: …` für verworfene Telegramme.
 
+## Befund 8: Empfangseinstellungen von SIGNALduinoAdv (Ralf9)
+
+Die Werte aus Bank 0 („SlowRF“) des SIGNALduinoAdv von Ralf9 wurden per Telnet getestet und danach fest übernommen:
+
+| Register | vorher | neu (Ralf9) | Bedeutung |
+|---|---|---|---|
+| MDMCFG4 | 0x69 | 0x57 | RX-Filter 325 kHz (statt 270 kHz), DRATE_E 7 |
+| MDMCFG3 | 0xE4 | 0xC4 | Datenrate ≈ 5,6 kBaud (statt ≈ 24 kBaud) |
+| AGCCTRL2 | 0x04 | 0x07 | AGC-Ziel 42 dB |
+| AGCCTRL0 | 0x92 | 0x91 | OOK-Entscheidungsschwelle 8 dB |
+| FREND1 | 0xB6 | 0x56 | |
+| FIFOTHR | 0x47 | 0x07 | |
+| TEST2 / TEST1 | 0x81 / 0x35 | 0x88 / 0x31 | |
+
+Ergebnis: Die Original-Fernbedienung TDRC16 (≈ 433,82 MHz) wird empfangen, die Controller hören sich gegenseitig deutlich zuverlässiger. Senden ist nicht betroffen (asynchroner Modus).
+
+Eine SDR-Aufnahme der TDRC16 (demoduliert, 48 kHz) zeigt: Präambel mit einem langen Puls (1,5–2,2 ms) und 12–13 Pulsen ≈ 400/400 µs, Sync-Lücke 3,96–3,98 ms, 72 Bits mit Periode 1,17–1,25 ms, kurze Pulse 290–420 µs, lange 770–810 µs. Jeder Code wird zweimal im Abstand von ca. 16 ms gesendet, bei gehaltener Taste folgt etwa alle 340 ms der nächste Zählerstand. Weil die kurzen Pulse teils unter 300 µs lagen, akzeptiert die Empfangsroutine jetzt Pulse ab 200 µs.
+
+Hinweis: Die empfindlicheren Einstellungen liefern im Ruhezustand wieder viele Rauschflanken (Interrupt-Last); die Plausibilitätsprüfung (Befund 6) verwirft die daraus entstehenden Phantom-Telegramme.
+
 ## Diagnose im Log
 
 Nach jedem Senden:
