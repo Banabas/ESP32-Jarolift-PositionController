@@ -165,11 +165,12 @@ private:
   int rxHourRssiMax_ = -200;
   uint8_t rxHourMinutes_ = 0;
   uint32_t rxAlarmMs_ = 0;
-  bool rxAlarmLogged_ = false;
+  bool rxDisturbed_ = false;   // "RX disturbed" was logged, waiting for the end of the disturbance
+  uint8_t rxQuietMinutes_ = 0; // minutes in a row clearly below the alarm threshold
   char rxLastStat_[96] = "no data yet";
   static constexpr uint32_t kRxAlarmEdgesPerMin = 50000; // normal: a few 1000/min
   static constexpr uint32_t kRxAlarmDiscardPerMin = 5;
-  static constexpr uint32_t kRxAlarmPauseMs = 10UL * 60UL * 1000UL; // max. one alarm per 10 min
+  static constexpr uint8_t kRxAlarmClearMinutes = 5; // quiet minutes until "RX ok again" is logged
   uint32_t txStartMs_;
   void initRmt();
   void txAddLevel(uint8_t level, uint16_t durationUs);

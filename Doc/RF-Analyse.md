@@ -163,7 +163,7 @@ Hinweis: Die empfindlicheren Einstellungen liefern im Ruhezustand wieder viele R
 
 Zusätzlich:
 - **Glitch-Filter:** Ein Störimpuls unter 200 µs mitten in einem Puls zerschnitt diesen bisher in zwei Teile (Folge: Pulsprüfung schlug fehl oder die Bits wurden verschoben gelesen, z. B. Seriennummer 0x01B90003 statt 0x03720007). Jetzt werden beide Flanken eines solchen Impulses verworfen und der umgebende Puls vollständig gemessen.
-- **RX-Statistik:** intern pro Minute gemessen, im Debug-Log nur noch als stündliche Zusammenfassung; bei mehr als 50.000 Flanken/min oder mindestens 5 verworfenen Telegrammen/min sofort eine Info-Meldung `RX disturbed` (höchstens alle 10 min).
+- **RX-Statistik:** intern pro Minute gemessen, im Debug-Log nur noch als stündliche Zusammenfassung; bei mehr als 50.000 Flanken/min oder mindestens 5 verworfenen Telegrammen/min eine Info-Meldung `RX disturbed`. Sie erscheint einmal beim Beginn der Störung; nach 5 Minuten in Folge unter 40.000 Flanken/min und unter 5 verworfenen Telegrammen folgt einmal `RX ok again` mit der Dauer. Vorher wurde die Meldung alle 10 min wiederholt – bei Aufbauten, die dauerhaft über der Schwelle liegen (z. B. ESP32 „mini“ ohne Entstörung, 50.000–80.000 Flanken/min), füllte das das Log.
 
 Mit den Werten von Ralf9 sinken auch die Rauschflanken im Ruhezustand deutlich (S2: von 630.000–870.000 auf ca. 1.000–4.000 pro Minute), vermutlich wegen der niedrigeren Datenrate.
 

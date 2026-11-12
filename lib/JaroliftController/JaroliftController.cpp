@@ -1130,9 +1130,11 @@ void JaroliftController::loop() {
 
   processRxData(); // process received data
 
-  // RX statistics: measured per minute, logged as an hourly summary (debug)
-  // and immediately (info, max. every 10 min) if the number of GDO2 edges or
-  // discarded telegrams exceeds a threshold - e.g. a disturbing device nearby.
+  // RX statistics: measured per minute, logged as an hourly summary (debug).
+  // If the number of GDO2 edges or discarded telegrams exceeds a threshold
+  // (e.g. a disturbing device nearby), an info message is logged once when the
+  // disturbance starts and once when it has ended - not repeatedly, because on
+  // some hardware the edge count is permanently above the threshold.
   if (millis() - rxStatMs_ >= 60000) {
     rxStatMs_ = millis();
     uint32_t edges = rxEdgeCount_;
@@ -1149,12 +1151,24 @@ void JaroliftController::loop() {
 
     // alarm
     bool alarm = (edges > kRxAlarmEdgesPerMin) || (discarded >= kRxAlarmDiscardPerMin);
-    if (alarm && (!rxAlarmLogged_ || millis() - rxAlarmMs_ >= kRxAlarmPauseMs)) {
-      uint8_t marc = cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F;
-      ESP_LOGI(TAG, "RX disturbed: edges %lu/min, discarded %lu, RSSI %d dBm, MARC 0x%02X", (unsigned long)edges,
-               (unsigned long)discarded, rssiDbm, marc);
-      rxAlarmMs_ = millis();
-      rxAlarmLogged_ = true;
+    // hysteresis: the disturbance has ended after kRxAlarmClearMinutes in a row
+    // clearly below the threshold, so a value around the threshold does not toggle
+    bool quiet = (edges < kRxAlarmEdgesPerMin / 10 * 8) && (discarded < kRxAlarmDiscardPerMin);
+    if (!rxDisturbed_) {
+      if (alarm) {
+        uint8_t marc = cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F;
+        ESP_LOGI(TAG, "RX disturbed: edges %lu/min, discarded %lu, RSSI %d dBm, MARC 0x%02X", (unsigned long)edges,
+                 (unsigned long)discarded, rssiDbm, marc);
+        rxAlarmMs_ = millis();
+        rxQuietMinutes_ = 0;
+        rxDisturbed_ = true;
+      }
+    } else if (!quiet) {
+      rxQuietMinutes_ = 0;
+    } else if (++rxQuietMinutes_ >= kRxAlarmClearMinutes) {
+      ESP_LOGI(TAG, "RX ok again after %lu min: edges %lu/min, RSSI %d dBm", (unsigned long)((millis() - rxAlarmMs_) / 60000UL),
+               (unsigned long)edges, rssiDbm);
+      rxDisturbed_ = false;
     }
 
     // hourly summary
