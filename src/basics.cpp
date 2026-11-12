@@ -22,7 +22,6 @@ s_eth eth;   // global ETH Informations
 SPIClass *SPI_2;
 s_espInfo espInfo;
 
-static muTimer wifiReconnectTimer = muTimer(); // timer for reconnect delay
 static int wifi_retry = 0;
 static volatile uint32_t wifiLostAt = 0;           // millis() of the connection loss, 0 = connected
 static volatile uint32_t wifiDisconnectEvents = 0; // disconnect events since the loss
@@ -216,9 +215,28 @@ static void checkWiFiRoaming() {
 void checkWiFi() {
 
   // Ethernet is also not connected - so we need to establish WiFi
-  // keep trying as long as the AP is not reachable (e.g. WiFi switched off at night)
-  if (wifiReconnectTimer.delayOnTrigger((!wifi.connected && !eth.connected), WIFI_RECONNECT)) {
-    wifiReconnectTimer.delayReset();
+  // keep trying as long as the AP is not reachable (e.g. WiFi switched off at night).
+  // The auto-reconnect of the core only handles some disconnect reasons (not e.g.
+  // 209 SA_QUERY_TIMEOUT), so this reconnect must work on its own: it checks the
+  // event flag AND the real status of the driver (#15).
+  static uint32_t lastAttempt = 0;
+  static bool wasDown = false;
+  const bool down = !eth.connected && (!wifi.connected || WiFi.status() != WL_CONNECTED);
+  if (!down) {
+    wasDown = false;
+  } else if (!wasDown) {
+    wasDown = true;
+    lastAttempt = millis(); // first attempt WIFI_RECONNECT after the loss
+  } else if (millis() - lastAttempt >= WIFI_RECONNECT) {
+    lastAttempt = millis();
+    if (wifi.connected) {
+      // the driver is not connected, but no disconnect event was received
+      ESP_LOGW(TAG, "WiFi status %d without disconnect event", (int)WiFi.status());
+      wifi.connected = false;
+      if (wifiLostAt == 0) {
+        wifiLostAt = millis() | 1;
+      }
+    }
     wifi_retry++;
     WiFi.disconnect();
     WiFi.mode(WIFI_STA);
