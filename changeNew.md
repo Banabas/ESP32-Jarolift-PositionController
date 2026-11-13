@@ -1,53 +1,35 @@
-# v1.23.0
+# v1.24.0
 
 ## what's new
 
-Many of the radio changes in this release come from Reinhard-M, who measured the controller and the original remote with an SDR ([#17](https://github.com/Banabas/ESP32-Jarolift-PositionController/pull/17), details in [Doc/RF-Analyse.md](https://github.com/Banabas/ESP32-Jarolift-PositionController/blob/main/Doc/RF-Analyse.md)).
+The receiver changes in this release come from Reinhard-M ([#20](https://github.com/Banabas/ESP32-Jarolift-PositionController/pull/20), [#21](https://github.com/Banabas/ESP32-Jarolift-PositionController/pull/21), details in [Doc/RF-Analyse.md](https://github.com/Banabas/ESP32-Jarolift-PositionController/blob/main/Doc/RF-Analyse.md)).
 
-### Telnet is now off by default
+### Better reception of the original remotes
 
-The Telnet server (port 23, no login) can be switched on and off in the settings, without a restart. **It is off by default, also after the update.** If you use Telnet, switch it on again under Settings -> Telnet.
+- The CC1101 now uses the receive settings of SIGNALduinoAdv (Ralf9): 325 kHz bandwidth, about 5.6 kBaud, adjusted AGC and OOK threshold. Before, the original remote TDRC16 was often not received at all; now it is received reliably, also over longer distances.
+- Short pulses down to 200 µs are accepted (the TDRC16 sends 290-420 µs).
+- A short noise spike inside a pulse no longer splits the pulse in two. Before, the telegram was discarded or the serial number was read shifted.
+- The noise in idle state drops a lot (on the ESP32-S2 from several 100,000 to a few 1,000 edges per minute), which also lowers the interrupt load.
 
-### More reliable sending
+### RX statistics
 
-- The carrier frequency is now 433.92 MHz, the same as the original remotes. Before it was 433.945 MHz.
-- The telegrams are now sent by the RMT hardware with exact timing. On the ESP32-S2, WiFi interrupts made single pulses too long, and the motor read the serial number shifted by 1-2 bits.
-- The transmit power setting (about +10 dBm) is now actually written to the CC1101. Before it stayed at about 0 dBm.
-- UP and DOWN are sent 5 times instead of 2 times, so one disturbed repetition no longer loses the command. STOP is still sent 2 times, because a repeated STOP means "hold STOP" (shade position).
-- Partial moves are more precise: the travel time now starts when the first telegram was sent, not after all repetitions.
-
-### Receiving
-
-Noise was sometimes decoded as a remote telegram (e.g. `serial: 0x0ffeffbf | cmd: 0xb`). A telegram is now only used if the pulse timing is plausible and the KeeLoq check passes. Discarded telegrams appear only in the debug log.
+- The receiver is measured every minute. The debug log shows an hourly summary, the Telnet command `cc1101 stat` the last minute.
+- If there are more than 50,000 edges or at least 5 discarded telegrams per minute (e.g. a disturbing device nearby), the info log shows `RX disturbed` once, and `RX ok again` when the disturbance has ended.
 
 ### WiFi
 
-- In a mesh (e.g. FRITZ!Repeater) the controller connects to the strongest access point instead of the first one found. Every 30 minutes it checks whether another access point is at least 8 dB stronger and switches to it.
-- While the WiFi is off (e.g. at night), the log is no longer filled with `WiFi-Disconnected` every 2-3 seconds ([#15](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/15)). The disconnect is logged once, further attempts about every 5 minutes, and after reconnecting a summary shows how long the controller was offline.
+- The controller now tries to reconnect every 30 seconds on its own, independent of the auto-reconnect of the ESP32 core. The core does not reconnect after some disconnect reasons (e.g. `reason 209`, seen with WPA2/WPA3 mixed mode), and the controller stayed offline until a restart ([#15](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/15)).
 
-### WebUI and OTA
+### Backup
 
-- OTA update via WebUI no longer fails with "Could Not Activate The Firmware" ([#18](https://github.com/Banabas/ESP32-Jarolift-PositionController/issues/18)).
-- The position sliders update live while a shutter moves, also for commands from timers, MQTT/HA or a remote.
-- The log is sent to the browser in small packets, so the WebUI no longer disconnects when the log is refreshed (especially on the ESP32-S2).
-
-### Diagnostics
-
-- New Telnet command `cc1101 r <reg> | w <reg> <val> | agc` to read and write CC1101 registers (not saved).
-- Debug log: RX statistics per minute and details of discarded telegrams.
+- The device counter is now saved in the configuration backup and restored with it. Before, after restoring a backup on a new ESP (or after erasing the flash) the counter started at 1 again, the motors ignored all telegrams and had to be learned again. A restored backup never sets the counter back.
+- The "Export" and "Show" buttons in the WebUI no longer send the upload form at the same time.
 
 ## changelog
 
-- [FEATURE] Telnet server can be switched on and off (off by default)
-- [FEATURE] WiFi: connect to and roam to the strongest access point in a mesh
-- [FEATURE] Telnet command `cc1101` to read/write CC1101 registers
-- [FIX] carrier frequency 433.92 MHz instead of 433.945 MHz
-- [FIX] telegrams sent by RMT hardware (shifted serial number on ESP32-S2)
-- [FIX] transmit power was not written to the CC1101
-- [FIX] UP/DOWN sent 5 times, STOP 2 times
-- [FIX] travel time of partial moves starts with the first telegram
-- [FIX] noise decoded as remote telegram
-- [FIX] OTA update failed with "Could Not Activate The Firmware" (#18)
-- [FIX] position sliders in the WebUI update live
-- [FIX] WebUI disconnected when the log was refreshed
-- [FIX] log flooded with "WiFi-Disconnected" while the WiFi is off (#15)
+- [FEATURE] receive settings of SIGNALduinoAdv, original remotes are received reliably (#20)
+- [FEATURE] RX statistics, `RX disturbed` / `RX ok again` in the log
+- [FEATURE] device counter is part of the configuration backup
+- [FIX] noise spikes inside a pulse split the pulse (#20, #21)
+- [FIX] WiFi stayed offline after some disconnect reasons, e.g. 209 (#15)
+- [FIX] Export/Show buttons in the WebUI sent the upload form
