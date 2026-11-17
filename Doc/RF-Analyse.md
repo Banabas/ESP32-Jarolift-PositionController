@@ -184,6 +184,20 @@ Beobachtungen:
 - Fazit: Die Empfangsschwäche ist im Zusammenspiel mit diesem ESP32-Board systembedingt. Für guten Empfang ist der Hardware-Aufbau (Board, Versorgung, Verdrahtung, Lage der Antenne) entscheidend; ein fest aufgelöteter Aufbau wie beim S2 empfängt deutlich besser.
 - Der S2 zeigte zweimal einen Zustand mit dauerhaft stark erhöhter Flankenzahl bei unverändertem RSSI (u. a. nachdem er wenige Zentimeter neben dem mini lag), der erst durch Aus- und Einschalten verschwand. Ursache ungeklärt; als Test im gestörten Zustand vorgesehen: `cc1101 w 1d 91` (IDLE → RX mit Neukalibrierung), dann `restart`.
 
+## Befund 10: CC1101 „hängt“ – CS-Leitung wurde nie angesteuert
+
+Symptom: Ein Controller sendete plötzlich nicht mehr (Firmware lief normal), bzw. der Empfänger lieferte dauerhaft stark erhöhte Flankenzahlen. Ein ESP-Neustart half nicht, nur Aus-/Einschalten.
+
+Ursache: Die CS-Leitung des CC1101 wurde nie gesetzt (dauerhaft LOW, Chip immer ausgewählt). Um jeden Registerzugriff wurden `SPI.begin()`/`SPI.end()` aufgerufen; dazwischen waren SCK/MOSI vom SPI-Peripheral getrennt und hingen offen. Eine einzelne Störflanke auf SCK verschiebt dann die SPI-Rahmung des CC1101 dauerhaft – alle folgenden Befehle, auch der Reset-Strobe beim ESP-Neustart, werden falsch interpretiert. Normalerweise setzt die steigende CS-Flanke nach jedem Zugriff die SPI-Schnittstelle zurück.
+
+Änderung:
+- CS wird pro Zugriff LOW/HIGH geschaltet, die SPI-Leitungen bleiben dauerhaft angeschlossen (auch bei einer Neuinitialisierung).
+- Erreicht der CC1101 nach dem Sendebefehl den Sendezustand nicht, wird er neu initialisiert (Reset, Register, RMT) und der Sendeversuch wiederholt.
+- Einmal pro Minute: MARCSTATE außerhalb 0x03–0x0F (Empfang bzw. Weg dorthin) → Neuinitialisierung.
+- Beides mit Warnung `CC1101 re-init: …` im Log.
+
+Ergebnis: Drei Tage Betrieb auf beiden Controllern ohne Ausfall und ohne eine einzige `CC1101 re-init`-Meldung.
+
 ## Diagnose im Log
 
 Nach jedem Senden:
@@ -228,3 +242,5 @@ Zwei Controller dürfen **nicht dieselbe Seriennummer** verwenden. Jeder Control
 19. RX: kurze Pulse ab 200 µs akzeptieren
 20. RX: Störspitzen innerhalb eines Pulses herausfiltern
 21. RX-Statistik: stündliche Zusammenfassung statt Minutenmeldung
+22. RX: Randfälle im Glitch-Filter (Hinweise von Sven)
+23. CC1101: CS-Leitung richtig ansteuern, automatische Neuinitialisierung
