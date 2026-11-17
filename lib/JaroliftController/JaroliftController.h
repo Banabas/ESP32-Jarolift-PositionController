@@ -173,6 +173,7 @@ private:
   static constexpr uint8_t kRxAlarmClearMinutes = 5; // quiet minutes until "RX ok again" is logged
   uint32_t txStartMs_;
   void initRmt();
+  bool reinitRadio(const char *reason);
   void txAddLevel(uint8_t level, uint16_t durationUs);
   void radioTxFrame(int length);
   void radioTxGroupH();

@@ -334,6 +334,36 @@ void JaroliftController::enterTx() {
     if (micros() - startTime > 50000)
       break;
   }
+  marcState &= 0x1F;
+  if (marcState < 0x13 || marcState > 0x15) {
+    // CC1101 did not enter TX - re-initialize it and try once more
+    char reason[40];
+    snprintf(reason, sizeof(reason), "no TX state (MARCSTATE 0x%02X)", marcState);
+    if (reinitRadio(reason)) {
+      cc1101_.setTxState();
+      delay(2);
+    }
+  }
+}
+
+/**
+ *******************************************************************
+ * @brief   re-initialize the CC1101 (reset strobe + all registers) and
+ *          the RMT output, e.g. after the chip stopped responding
+ * @param   reason (for the log)
+ * @return  true if the CC1101 responds again
+ * *******************************************************************/
+bool JaroliftController::reinitRadio(const char *reason) {
+  ESP_LOGW(TAG, "CC1101 re-init: %s", reason);
+  if (!cc1101_.init()) {
+    ESP_LOGE(TAG, "CC1101 re-init failed - chip not responding");
+    return false;
+  }
+  cc1101_.setSyncWord(kSyncWord, false);
+  cc1101_.setCarrierFreq(CFREQ_433);
+  cc1101_.disableAddressCheck();
+  initRmt(); // init() sets GDO0 to input - attach RMT again
+  return true;
 }
 
 /**
@@ -1085,8 +1115,6 @@ void JaroliftController::begin() {
   cc1101_.setGPIO(gpio_.sck, gpio_.miso, gpio_.mosi, gpio_.cs, gpio_.gdo0);
   // TX power must be set BEFORE init(): init() writes paTableByte into PATABLE[0]
   // (single access, exactly like before). A later setTxPowerAmp() has no effect.
-  // Note: CS of the CC1101 is held LOW permanently (SPI.begin() does not drive it),
-  // so burst accesses are never terminated - do not use writeBurstReg().
   cc1101_.setTxPowerAmp(PA_LongDistance);
   if (!cc1101_.init()) {
     ESP_LOGE(TAG, "Initialisation of the CC1101 module aborted!");
@@ -1145,6 +1173,17 @@ void JaroliftController::loop() {
     rxDiscardCount_ = 0;
     uint8_t raw = cc1101_.readReg(CC1101_RSSI, CC1101_STATUS_REGISTER);
     int rssiDbm = ((raw >= 128) ? ((int)raw - 256) / 2 : (int)raw / 2) - 74;
+
+    // CC1101 must be in RX (0x0D) or on its way there (0x03-0x0F: calibration,
+    // settling, RX end) - anything else (IDLE, FIFO error, invalid value from a
+    // hanging SPI interface) means it hangs: re-initialize
+    uint8_t marcNow = cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F;
+    if (marcNow < 0x03 || marcNow > 0x0F) {
+      char reason[40];
+      snprintf(reason, sizeof(reason), "not in RX (MARCSTATE 0x%02X)", marcNow);
+      if (reinitRadio(reason))
+        enterRx();
+    }
 
     snprintf(rxLastStat_, sizeof(rxLastStat_), "last minute: edges %lu, ok %lu, discarded %lu, RSSI %d dBm", (unsigned long)edges,
              (unsigned long)ok, (unsigned long)discarded, rssiDbm);

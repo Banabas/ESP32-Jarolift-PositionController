@@ -37,10 +37,14 @@ uint8_t gpio_gdo0 = 21;
 /**
  * Macros
  */
-// Select (SPI) CC1101
-#define cc1101_Select() SPI.begin(gpio_sck, gpio_miso, gpio_mosi, gpio_cs)
-// Deselect (SPI) CC1101
-#define cc1101_Deselect() SPI.end()
+// Select / deselect (SPI) CC1101 via its CS line.
+// Previously CS was never driven (permanently LOW) and SPI.begin()/SPI.end()
+// was called around each access: between accesses SCK/MOSI were detached and
+// floating while the chip was still selected. A single noise edge on SCK then
+// shifted the SPI framing of the CC1101 permanently (all following commands
+// misinterpreted, also the reset strobe) - only a power cycle helped.
+#define cc1101_Select() digitalWrite(gpio_cs, LOW)
+#define cc1101_Deselect() digitalWrite(gpio_cs, HIGH)
 // Wait until SPI MISO line goes low
 #define wait_Miso() delay(10)
 // while(digitalRead(PORT_SPI_MISO))
@@ -308,12 +312,12 @@ void CC1101::setCCregs(void) {
 bool CC1101::init(uint8_t freq) {
   carrierFreq = freq;
 
-  pinMode(gpio_sck, OUTPUT);
-  pinMode(gpio_mosi, OUTPUT);
-  pinMode(gpio_miso, INPUT);
   pinMode(gpio_cs, OUTPUT);
+  digitalWrite(gpio_cs, HIGH); // CC1101 deselected
 
-  SPI.begin(gpio_sck, gpio_miso, gpio_mosi, gpio_cs);
+  // SPI pins stay attached to the SPI peripheral permanently (also on re-init)
+  SPI.end();
+  SPI.begin(gpio_sck, gpio_miso, gpio_mosi, -1);
   pinMode(gpio_gdo0, INPUT); // Config GDO0 as input
 
   if (connected() == false) {
