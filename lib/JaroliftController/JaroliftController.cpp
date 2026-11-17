@@ -334,7 +334,7 @@ void JaroliftController::enterTx() {
     if (micros() - startTime > 50000)
       break;
   }
-  marcState &= 0x1F;
+  marcState = readStatusStable(CC1101_MARCSTATE) & 0x1F; // confirm (errata)
   if (marcState < 0x13 || marcState > 0x15) {
     // CC1101 did not enter TX - re-initialize it and try once more
     char reason[40];
@@ -344,6 +344,26 @@ void JaroliftController::enterTx() {
       delay(2);
     }
   }
+}
+
+/**
+ *******************************************************************
+ * @brief   read a CC1101 status register reliably
+ * @details CC1101 errata (SPI read synchronization): status registers that
+ *          change while being read can return a wrong value. Read until two
+ *          consecutive reads are equal (max. 5 attempts).
+ * @param   reg status register address (e.g. CC1101_MARCSTATE)
+ * @return  register value
+ * *******************************************************************/
+uint8_t JaroliftController::readStatusStable(uint8_t reg) {
+  uint8_t last = cc1101_.readStatusReg(reg);
+  for (int i = 0; i < 4; i++) {
+    uint8_t val = cc1101_.readStatusReg(reg);
+    if (val == last)
+      return val;
+    last = val;
+  }
+  return last;
 }
 
 /**
@@ -1171,13 +1191,13 @@ void JaroliftController::loop() {
     uint32_t discarded = rxDiscardCount_;
     rxOkCount_ = 0;
     rxDiscardCount_ = 0;
-    uint8_t raw = cc1101_.readReg(CC1101_RSSI, CC1101_STATUS_REGISTER);
+    uint8_t raw = readStatusStable(CC1101_RSSI);
     int rssiDbm = ((raw >= 128) ? ((int)raw - 256) / 2 : (int)raw / 2) - 74;
 
     // CC1101 must be in RX (0x0D) or on its way there (0x03-0x0F: calibration,
     // settling, RX end) - anything else (IDLE, FIFO error, invalid value from a
     // hanging SPI interface) means it hangs: re-initialize
-    uint8_t marcNow = cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F;
+    uint8_t marcNow = readStatusStable(CC1101_MARCSTATE) & 0x1F;
     if (marcNow < 0x03 || marcNow > 0x0F) {
       char reason[40];
       snprintf(reason, sizeof(reason), "not in RX (MARCSTATE 0x%02X)", marcNow);
@@ -1195,7 +1215,7 @@ void JaroliftController::loop() {
     bool quiet = (edges < kRxAlarmEdgesPerMin / 10 * 8) && (discarded < kRxAlarmDiscardPerMin);
     if (!rxDisturbed_) {
       if (alarm) {
-        uint8_t marc = cc1101_.readStatusReg(CC1101_MARCSTATE) & 0x1F;
+        uint8_t marc = readStatusStable(CC1101_MARCSTATE) & 0x1F;
         ESP_LOGI(TAG, "RX disturbed: edges %lu/min, discarded %lu, RSSI %d dBm, MARC 0x%02X", (unsigned long)edges,
                  (unsigned long)discarded, rssiDbm, marc);
         rxAlarmMs_ = millis();
