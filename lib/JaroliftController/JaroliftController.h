@@ -174,6 +174,7 @@ private:
   uint32_t txStartMs_;
   void initRmt();
   bool reinitRadio(const char *reason);
+  uint8_t readStatusStable(uint8_t reg);
   void txAddLevel(uint8_t level, uint16_t durationUs);
   void radioTxFrame(int length);
   void radioTxGroupH();
