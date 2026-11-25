@@ -137,7 +137,7 @@ void onWiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
  * @return  none
  * *******************************************************************/
 static void checkWiFiRoaming() {
-  if (!wifi.connected || eth.connected) {
+  if (!wifi.connected || (eth.connected && !config.wifi.enable)) {
     wifiRoamScanRunning = false;
     wifiRoamLastScan = millis(); // restart interval after (re)connect
     return;
@@ -214,14 +214,16 @@ static void checkWiFiRoaming() {
  * *******************************************************************/
 void checkWiFi() {
 
-  // Ethernet is also not connected - so we need to establish WiFi
   // keep trying as long as the AP is not reachable (e.g. WiFi switched off at night).
   // The auto-reconnect of the core only handles some disconnect reasons (not e.g.
-  // 209 SA_QUERY_TIMEOUT), so this reconnect must work on its own: it checks the
-  // event flag AND the real status of the driver (#15).
+  // 209 SA_QUERY_TIMEOUT or 8 ASSOC_LEAVE), so this reconnect must work on its own:
+  // it checks the event flag AND the real status of the driver (#15).
+  // If WiFi is enabled it is reconnected even while Ethernet is connected - WiFi and
+  // ETH can be used in parallel (e.g. in two different networks). If WiFi is disabled,
+  // it is only used as fallback while Ethernet is not connected (as before).
   static uint32_t lastAttempt = 0;
   static bool wasDown = false;
-  const bool down = !eth.connected && (!wifi.connected || WiFi.status() != WL_CONNECTED);
+  const bool down = (config.wifi.enable || !eth.connected) && (!wifi.connected || WiFi.status() != WL_CONNECTED);
   if (!down) {
     wasDown = false;
   } else if (!wasDown) {
